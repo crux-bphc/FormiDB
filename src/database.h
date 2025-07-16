@@ -5,6 +5,10 @@
 #include "objects.h"
 #include <stdlib.h>
 #include <stdbool.h>
+#include <unistd.h>
+
+// Memory navigation
+void* memory_step(void* src, size_t offset);
 
 // Related to Pager and Table
 
@@ -64,7 +68,8 @@ typedef struct{
     int assoc_child_page; // -1 for leaf node
 } Pair;
 
-int data_space(NodeType node_type); // Space for actual data excluding metadata
+// Helpers
+size_t data_space(NodeType node_type); // Space for actual data excluding metadata
 int max_nodes(NodeType node_type, int row_size);
 
 // Way to read and write to constants from file
