@@ -1,3 +1,0 @@
-/home/usernameccr/Projects/crux/DBClone/src/build/CMakeFiles/main.dir
-/home/usernameccr/Projects/crux/DBClone/src/build/CMakeFiles/edit_cache.dir
-/home/usernameccr/Projects/crux/DBClone/src/build/CMakeFiles/rebuild_cache.dir
