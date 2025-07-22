@@ -64,13 +64,18 @@ typedef enum{
 
 typedef struct{
     int key;
-    struct Row* assoc_row; // NULL for internal node
-    int assoc_child_page; // -1 for leaf node
+    Row* value;
+    int assoc_child;
 } Pair;
+
+typedef enum{
+    FIND_NEAREST_SMALLEST,
+    FIND_NEAREST_LARGEST,
+} FindType;
 
 // Helpers
 size_t data_space(NodeType node_type); // Space for actual data excluding metadata
-int max_nodes(NodeType node_type, int row_size);
+int max_nodes(NodeType node_type, size_t row_size);
 
 // Way to read and write to constants from file
 int is_root(void* page);
@@ -94,15 +99,20 @@ void* left_most_child(void* page);
 void set_left_most_child(void* page, int left_most_child_page);
 
 // KVC pairs
-void* get_key(void* page, int cell_num, int row_size);
-void set_key(void* page, int cell_num, int row_size, int key);
+void* get_key(void* page, int cell_num, size_t row_size);
+void set_key(void* page, int cell_num, size_t row_size, int key);
 
-void* get_pointer(void* page, int cell_num, int row_size);
-void set_pointer(void* page, int cell_num, int row_size, int pointer);
+void* get_pointer(void* page, int cell_num, size_t row_size);
+void set_pointer(void* page, int cell_num, size_t row_size, int pointer);
 
-// Node handlers
+// Node input/find handlers
+int find_free_page(Cursor* cursor);
+
 void init_root(Cursor* cursor, bool is_leaf);
+
 void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num);
+
+int bin_search(Cursor* cursor, int key, FindType find_type);
 
 void insert_into_leaf(Cursor* cursor, void* page, int key, Row* value);
 

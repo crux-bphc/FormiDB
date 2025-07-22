@@ -9,8 +9,8 @@
 #include "database.h"
 
 // Memory navigation
-void* memory_step(void* src, size_t offset){
-    unsigned char* loc = (unsigned char*)src + offset;
+void* memory_step(void* origin, size_t offset){
+    unsigned char* loc = (unsigned char*)origin + offset;
     return loc;
 }
 
@@ -189,7 +189,7 @@ size_t data_space(NodeType node_type){
     return space_for_kv_pairs;
 }
 
-int max_nodes(NodeType node_type, int row_size){
+int max_nodes(NodeType node_type, size_t row_size){
     switch (node_type){
         case NODE_INTERNAL:
             return data_space(NODE_INTERNAL)/(sizeof(int) + sizeof(int));
@@ -249,7 +249,7 @@ void set_left_most_child(void* page, int left_most_child_page){
 }
 
 // KV Pair handlers
-void* get_key(void* page, int cell_num, int row_size){
+void* get_key(void* page, int cell_num, size_t row_size){
     int curr_cells = num_cells(page);
     // if (cell_num >= curr_cells)
     //     exit(EXIT_FAILURE);
@@ -269,22 +269,68 @@ void* get_key(void* page, int cell_num, int row_size){
     }
 }
 
-void set_key(void* page, int cell_num, int row_size, int key){
+void set_key(void* page, int cell_num, size_t row_size, int key){
     void* key_loc = get_key(page, cell_num, row_size);
     *(int*)key_loc = key;
 }
 
-void* get_pointer(void* page, int cell_num, int row_size){
+void* get_pointer(void* page, int cell_num, size_t row_size){
     void* key_loc = get_key(page, cell_num, row_size);
     return memory_step(key_loc, sizeof(int));
 }
 
-void set_pointer(void* page, int cell_num, int row_size, int pointer){
+void set_pointer(void* page, int cell_num, size_t row_size, int pointer){
     void* ptr_loc = get_pointer(page, cell_num, row_size);
     *(int*)ptr_loc = pointer;
 }
 
 // Node handlers
+int find_free_page(Cursor* cursor){
+    // Once deletion is implemented, find appropriate free page, this implementation could use the .emb file to track unused pages
+    return cursor->table->pager->num_pages;
+}
+
+int bin_search(Cursor* cursor, int key, FindType find_type){
+    void* curr_page = get_page(cursor->table->pager, cursor->page_num);
+    size_t row_size = cursor->table->row_size;
+
+    int left = 0, right = num_cells(curr_page) - 1;
+    
+    if (find_type == FIND_NEAREST_SMALLEST){
+        int nearest_smallest_pos = 0;
+        while (left <= right){
+            int mid = (left + right) / 2;
+            if (*(int*)get_key(curr_page, mid, row_size) > key)
+                right = mid - 1;
+            else if (*(int*)get_key(curr_page, mid, row_size) < key){
+                left = mid + 1;
+                nearest_smallest_pos = mid;
+            }
+            else
+                return -1;
+        }
+        return nearest_smallest_pos;
+    }
+
+    else if (find_type == FIND_NEAREST_LARGEST){
+        int nearest_largest_pos = num_cells(curr_page);
+        while (left <= right){
+            int mid = (left + right) / 2;
+            int mid_key = *(int*)get_key(curr_page, mid, row_size);
+            if (mid_key > key){
+                nearest_largest_pos = mid;
+                right = mid - 1;
+            }
+            else if (mid_key < key)
+                left = mid + 1;
+            else
+                return -1;
+        }
+        return nearest_largest_pos; 
+    }
+}
+
+
 void init_root(Cursor* cursor, bool is_leaf){
     Pager* pager = cursor->table->pager;
     void* new_alloc_loc = get_page(pager, pager->num_pages);
@@ -296,7 +342,6 @@ void init_root(Cursor* cursor, bool is_leaf){
     pager->num_pages += 1;
     
     void* new_root = get_page(pager, 0);
-    memset(new_root, 0, PAGE_SIZE);
     
     set_is_root(new_root, 1);
     set_node_type(new_root, (is_leaf) ? NODE_LEAF : NODE_INTERNAL);
@@ -316,31 +361,24 @@ void init_root(Cursor* cursor, bool is_leaf){
 // Returns page as well as the index at which the new pair is to be inserted
 void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num){
     void* curr_page = get_page(cursor->table->pager, curr_page_num);
+    
     size_t row_size = cursor->table->row_size;
+    cursor->page_num = curr_page_num;
 
     if (node_type(curr_page) == NODE_INTERNAL){
-        int left = 0, right = num_cells(curr_page);
+        int left = 0, right = num_cells(curr_page) - 1;
         if (key < *(int*)get_key(curr_page, 0, row_size))
             return find_leaf_to_insert(cursor, key, *(int*)left_most_child(curr_page));
         
-        int nearest_smallest_pos = 0;
-        while (left <= right){
-            int mid = (left + right) / 2;
-            if (*(int*)get_key(curr_page, mid, row_size) > key)
-                right = mid - 1;
-            else if (*(int*)get_key(curr_page, mid, row_size) < key){
-                left = mid + 1;
-                nearest_smallest_pos = mid;
-            }
-            else{
-                fprintf(stderr, "DUPLICATE KEY");
-                exit(EXIT_FAILURE);
-            }
+        int nearest_smallest_pos = bin_search(cursor, key, FIND_NEAREST_SMALLEST);
+
+        if (nearest_smallest_pos == -1){
+            fprintf(stderr, "Duplicate key");
+            exit(EXIT_FAILURE);
         }
+
         return find_leaf_to_insert(cursor, key, *(int*)get_key(curr_page, nearest_smallest_pos, row_size));
     }
-    cursor->page_num = curr_page_num;
-
     int idx_to_insert = num_cells(curr_page);
 
     if (idx_to_insert == 0){
@@ -348,30 +386,22 @@ void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num){
         return curr_page;
     }
 
-    int left = 0, right = num_cells(curr_page) - 1;
+    idx_to_insert = bin_search(cursor, key, FIND_NEAREST_LARGEST);
 
-    while (left <= right){
-        int mid = (left + right) / 2;
-        int mid_key = *(int*)get_key(curr_page, mid, row_size);
-        if (mid_key > key){
-            idx_to_insert = mid;
-            right = mid - 1;
-        }
-        else if (mid_key < key)
-            left = mid + 1;
-        else{
-            fprintf(stderr, "Duplicate key");
-            close_connection(cursor);
-            exit(EXIT_FAILURE);
-        }
+    if (idx_to_insert == -1){
+        fprintf(stderr, "Duplicate key");
+        close_connection(cursor);
+        exit(EXIT_FAILURE);
     }
+    
     cursor->cell_num = idx_to_insert;
     return curr_page;
 }
 
 void insert_into_leaf(Cursor* cursor, void* page, int key, Row* value){
     if (num_cells(page) == max_nodes(NODE_LEAF, cursor->table->row_size)){
-        printf("Ready to split");
+        printf("Splitting");
+        split_insert_into_leaf(cursor, page, key, value, find_free_page(cursor));
         return;
     }
     int idx_to_insert = cursor->cell_num;
@@ -394,18 +424,7 @@ void insert_into_internal(Cursor* cursor, void* page, int key, int assoc_child_p
     }
     else{
         int left = 0, right = num_cells(page) - 1;
-        int idx_to_insert = num_cells(page);
-
-        while (left <= right){
-            int mid = (left + right) / 2;
-            int mid_key = *(int*)get_key(page, mid, cursor->table->row_size);
-            if (mid_key > key){
-                idx_to_insert = mid;
-                right = mid - 1;
-            }
-            else if (mid_key < key)
-                left = mid + 1;
-        }
+        int idx_to_insert = bin_search(cursor, key, FIND_NEAREST_LARGEST);
         
         for (int i = num_cells(page); i > idx_to_insert; i--){
             memcpy(get_key(page, i, cursor->table->row_size), get_key(page, i - 1, cursor->table->row_size), sizeof(int) + sizeof(int));
@@ -417,51 +436,7 @@ void insert_into_internal(Cursor* cursor, void* page, int key, int assoc_child_p
 }
 
 void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* value, int new_alloc_page){
-    int leaf_order = max_nodes(NODE_LEAF, cursor->table->row_size) + 1;
-    
-    int parent = parent_pointer(page_to_split);
-    
-    void* new_page = get_page(cursor->table->pager, new_alloc_page);
-    set_is_root(new_page, 0);
-    set_node_type(new_page, NODE_LEAF);
-    set_num_cells(new_page, 0);
-
-    int temporary[leaf_order];
-    int new_key = key;
-
-    int i = 0;
-    while (i < num_cells(page_to_split) - 1 && *(int*)get_key(page_to_split, i, cursor->table->row_size) < new_key){
-        temporary[i] = *(int*)get_key(page_to_split, i, cursor->table->row_size);
-        i++;    
-    }
-    temporary[i] = key;
-    while (i < num_cells(page_to_split)){
-        temporary[i + 1] = *(int*)get_key(page_to_split, i, cursor->table->row_size);
-        i++;
-    }
-
-    int inp = ceil(leaf_order/2);
-
-    set_num_cells(page_to_split, inp);
-    set_num_cells(new_page, leaf_order - inp);
-    for (int i = inp; i < leaf_order; i++){
-        set_key(new_page, i - inp, temporary[i], cursor->table->row_size);
-        serialize_row(value, cursor->table->column_count, get_key(new_page, i - inp, cursor->table->row_size) + sizeof(int));
-    }
-    for (int i = 0; i < inp; i++){
-        set_key(page_to_split, i, temporary[i], cursor->table->row_size);
-        serialize_row(value, cursor->table->column_count, get_key(page_to_split, i, cursor->table->row_size) + sizeof(int));
-    }
-
-    if (parent == -1){
-        init_root(cursor, false);
-    }
-    parent = parent_pointer(page_to_split);
-    set_parent_pointer(new_page, parent);
-
-    cursor->table->pager->num_pages += 1;
-
-    insert_into_internal(cursor, get_page(cursor->table->pager, parent), temporary[inp - 1], new_alloc_page);
+   
 }
 
 void insert(Cursor* cursor, int key, Row* value){

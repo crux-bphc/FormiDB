@@ -58,33 +58,20 @@ int main(){
 
     Cursor* cursor = start_connection("database.db", 3, cd, row_size(&new_row, 3));
 
-    // for (int i = 0; i < 70; i++){
-    //     *(int*)new_row.columns[0].data = 2*i;
-    //     insert(cursor, i, &new_row);
-    // }
-    // insert(cursor, 70, &new_row);
+    for (int i = 0; i < 70; i++){
+        *(int*)new_row.columns[0].data = 2*i;
+        insert(cursor, i, &new_row);
+    }
+    insert(cursor, 70, &new_row);
 
     // printf("%d ", max_nodes(NODE_LEAF, cursor->table->row_size));
 
     void* testr = get_page(cursor->table->pager, 0);
     
     Row final;
-    deserialize_row(&final, cursor->table->column_count, memory_step(get_key(testr, 69, cursor->table->row_size), sizeof(int)));
+    //deserialize_row(&final, cursor->table->column_count, memory_step(get_key(testr, 0, cursor->table->row_size), sizeof(int)));
     
     close_connection(cursor);
-
-    // void* dest = malloc(4096);
-    // serialize_row(&new_row, 3, dest);
-    // strcpy((char*)new_row.columns[2].data, "test");
-    // serialize_row(&new_row, 3, dest + row_size(&new_row, 3));
-
-    // Row final;
-    // deserialize_row(&final, 3, dest);
-
-    // printf("%s ", (char*)final.columns[2].data);
-
-    // write_preprocess_metadata(row_size(&new_row, 3), cd, 3);
-    // get_row_data();
 
     // Free
     for (int i = 0; i < 3; i++){
