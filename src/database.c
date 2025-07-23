@@ -109,6 +109,7 @@ bool pager_flush(Pager* pager, int page_num){
 void* get_page(Pager* pager, int page_num){
     if (!pager->pages[page_num]){
         pager->pages[page_num] = malloc(PAGE_SIZE);
+        memset(pager->pages[page_num], 0, PAGE_SIZE);
         
         off_t advance = lseek(pager->file_descriptor, page_num*PAGE_SIZE, SEEK_SET);
         if (advance == -1)
@@ -295,49 +296,43 @@ int bin_search(Cursor* cursor, int key, FindType find_type){
     size_t row_size = cursor->table->row_size;
 
     int left = 0, right = num_cells(curr_page) - 1;
+    int nearest_smallest_pos = 0, nearest_largest_pos = num_cells(curr_page);
     
-    if (find_type == FIND_NEAREST_SMALLEST){
-        int nearest_smallest_pos = 0;
-        while (left <= right){
-            int mid = (left + right) / 2;
-            if (*(int*)get_key(curr_page, mid, row_size) > key)
-                right = mid - 1;
-            else if (*(int*)get_key(curr_page, mid, row_size) < key){
-                left = mid + 1;
-                nearest_smallest_pos = mid;
-            }
-            else
-                return -1;
+    
+    while (left <= right){
+        int mid = (left + right) / 2;
+        if (*(int*)get_key(curr_page, mid, row_size) > key){
+            right = mid - 1;
+            nearest_largest_pos = mid;
         }
-        return nearest_smallest_pos;
+        else if (*(int*)get_key(curr_page, mid, row_size) < key){
+            left = mid + 1;
+            nearest_smallest_pos = mid;
+        }
+        else
+            return -1;
     }
 
-    else if (find_type == FIND_NEAREST_LARGEST){
-        int nearest_largest_pos = num_cells(curr_page);
-        while (left <= right){
-            int mid = (left + right) / 2;
-            int mid_key = *(int*)get_key(curr_page, mid, row_size);
-            if (mid_key > key){
-                nearest_largest_pos = mid;
-                right = mid - 1;
-            }
-            else if (mid_key < key)
-                left = mid + 1;
-            else
-                return -1;
-        }
-        return nearest_largest_pos; 
-    }
+    if (find_type == FIND_NEAREST_LARGEST)
+        return nearest_largest_pos;
+    else if (find_type == FIND_NEAREST_SMALLEST)
+        return nearest_smallest_pos;
 }
 
-
-void init_root(Cursor* cursor, bool is_leaf){
+// Returns page to which the old node was copied to
+int init_root(Cursor* cursor, bool is_leaf){
     Pager* pager = cursor->table->pager;
-    void* new_alloc_loc = get_page(pager, pager->num_pages);
+    int free_page = find_free_page(cursor);
 
-    memcpy(new_alloc_loc, get_page(pager, 0), PAGE_SIZE);
-    set_is_root(new_alloc_loc, 0);
-    set_parent_pointer(new_alloc_loc, 0);
+    int old_page_now_at = 0;
+    if (pager->num_pages != 0){
+        old_page_now_at = free_page;
+        void* new_alloc_loc = get_page(pager, free_page);
+
+        memcpy(new_alloc_loc, get_page(pager, 0), PAGE_SIZE);
+        set_is_root(new_alloc_loc, 0);
+        set_parent_pointer(new_alloc_loc, 0);
+    }
 
     pager->num_pages += 1;
     
@@ -352,10 +347,12 @@ void init_root(Cursor* cursor, bool is_leaf){
 
     else{
         set_num_keys(new_root, 0);
-        set_left_most_child(new_root, pager->num_pages - 1);
+        set_left_most_child(new_root, free_page);
     }
     cursor->page_num = 0;
     cursor->cell_num = 0;
+
+    return old_page_now_at;
 }
 
 // Returns page as well as the index at which the new pair is to be inserted
@@ -400,7 +397,6 @@ void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num){
 
 void insert_into_leaf(Cursor* cursor, void* page, int key, Row* value){
     if (num_cells(page) == max_nodes(NODE_LEAF, cursor->table->row_size)){
-        printf("Splitting");
         split_insert_into_leaf(cursor, page, key, value, find_free_page(cursor));
         return;
     }
@@ -409,7 +405,7 @@ void insert_into_leaf(Cursor* cursor, void* page, int key, Row* value){
         memcpy(get_key(page, i, cursor->table->row_size), get_key(page, i - 1, cursor->table->row_size), sizeof(int) + cursor->table->row_size);
     }
     set_key(page, idx_to_insert, cursor->table->row_size, key);
-    serialize_row(value, cursor->table->column_count, get_key(page, idx_to_insert, cursor->table->row_size) + sizeof(int));
+    serialize_row(value, cursor->table->column_count, memory_step(get_key(page, idx_to_insert, cursor->table->row_size), sizeof(int)));
     set_num_cells(page, num_cells(page) + 1);
 }
 
@@ -435,8 +431,62 @@ void insert_into_internal(Cursor* cursor, void* page, int key, int assoc_child_p
     }
 }
 
-void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* value, int new_alloc_page){
-   
+void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* value, int new_alloc_page_num){
+    int leaf_order = max_nodes(NODE_LEAF, cursor->table->row_size) + 1;
+    Pager* pager = cursor->table->pager;
+    int split_point = ceil((double)leaf_order/2);
+
+    int parent_pointer_ = parent_pointer(page_to_split);
+
+    int new_page_num = find_free_page(cursor);
+    void* new_page = get_page(pager, new_page_num);
+    pager->num_pages += 1;
+    
+    // Initialize new leaf node
+    set_is_root(new_page, 0);
+    set_node_type(new_page, NODE_LEAF);
+    set_num_cells(new_page, leaf_order - split_point);
+
+    int idx_to_insert = bin_search(cursor, key, FIND_NEAREST_LARGEST);
+
+    for (int i = split_point; i < leaf_order - 1; i++){
+        memcpy(get_key(new_page, i - split_point, cursor->table->row_size), 
+                    get_key(page_to_split, i, cursor->table->row_size), sizeof(int) + cursor->table->row_size);
+    }
+
+    if (idx_to_insert < split_point){
+        for (int i = split_point - 1; i > idx_to_insert; i--){
+            memcpy(get_key(page_to_split, i, cursor->table->row_size), 
+                    get_key(page_to_split, i - 1, cursor->table->row_size), sizeof(int) + cursor->table->row_size);
+        }     
+        set_key(page_to_split, idx_to_insert, cursor->table->row_size, key);
+        serialize_row(page_to_split, cursor->table->column_count, 
+                    memory_step(get_key(page_to_split, idx_to_insert, cursor->table->row_size), sizeof(int)));   
+    }
+    else{
+        for (int i = leaf_order - 1; i > idx_to_insert; i--){
+            memcpy(get_key(new_page, i - split_point, cursor->table->row_size), 
+                    get_key(new_page, i - 1 - split_point, cursor->table->row_size), sizeof(int) + cursor->table->row_size);
+        }
+        set_key(new_page, idx_to_insert - split_point, cursor->table->row_size, key);
+        serialize_row(value, cursor->table->column_count, 
+                    memory_step(get_key(new_page, idx_to_insert - split_point, cursor->table->row_size), sizeof(int)));
+    }
+    set_num_cells(page_to_split, split_point);
+
+    if (parent_pointer(page_to_split) == -1){
+        int old_page_num = init_root(cursor, false);
+        page_to_split = get_page(pager, old_page_num);
+        set_is_root(page_to_split, 0);
+        set_node_type(page_to_split, NODE_LEAF);
+        set_parent_pointer(page_to_split, 0);
+
+        parent_pointer_ = 0;
+    }
+
+    set_parent_pointer(new_page, parent_pointer_);
+    cursor->page_num = parent_pointer_;
+    insert_into_internal(cursor, get_page(pager, parent_pointer_), key, new_page_num);
 }
 
 void insert(Cursor* cursor, int key, Row* value){

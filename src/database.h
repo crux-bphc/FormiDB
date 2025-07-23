@@ -108,7 +108,7 @@ void set_pointer(void* page, int cell_num, size_t row_size, int pointer);
 // Node input/find handlers
 int find_free_page(Cursor* cursor);
 
-void init_root(Cursor* cursor, bool is_leaf);
+int init_root(Cursor* cursor, bool is_leaf);
 
 void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num);
 

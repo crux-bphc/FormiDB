@@ -50,21 +50,20 @@ int main(){
 
     new_row.columns[2].data_type = DB3_STRING;
     char test[] = "the one";
-    new_row.columns[2].data_size = 10;
-    new_row.columns[2].data = calloc(10, sizeof(char));
+    new_row.columns[2].data_size = 300;
+    new_row.columns[2].data = calloc(300, sizeof(char));
     strcpy((char*)new_row.columns[2].data, test);
 
     // Test
 
     Cursor* cursor = start_connection("database.db", 3, cd, row_size(&new_row, 3));
 
-    for (int i = 0; i < 70; i++){
+    for (int i = 0; i < 11; i++){
         *(int*)new_row.columns[0].data = 2*i;
         insert(cursor, i, &new_row);
     }
-    insert(cursor, 70, &new_row);
-
-    // printf("%d ", max_nodes(NODE_LEAF, cursor->table->row_size));
+    *(int*)new_row.columns[0].data = -99;
+    insert(cursor, 12, &new_row);
 
     void* testr = get_page(cursor->table->pager, 0);
     
