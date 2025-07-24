@@ -62,12 +62,6 @@ typedef enum{
     NODE_INTERNAL
 } NodeType;
 
-typedef struct{
-    int key;
-    Row* value;
-    int assoc_child;
-} Pair;
-
 typedef enum{
     FIND_NEAREST_SMALLEST,
     FIND_NEAREST_LARGEST,

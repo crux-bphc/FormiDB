@@ -68,7 +68,7 @@ int main(){
     void* testr = get_page(cursor->table->pager, 0);
     
     Row final;
-    //deserialize_row(&final, cursor->table->column_count, memory_step(get_key(testr, 0, cursor->table->row_size), sizeof(int)));
+    deserialize_row(&final, cursor->table->column_count, memory_step(get_key(testr, 0, cursor->table->row_size), sizeof(int)));
     
     close_connection(cursor);
 
