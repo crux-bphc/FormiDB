@@ -486,7 +486,7 @@ void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* v
 
     set_parent_pointer(new_page, parent_pointer_);
     cursor->page_num = parent_pointer_;
-    insert_into_internal(cursor, get_page(pager, parent_pointer_), key, new_page_num);
+    insert_into_internal(cursor, get_page(pager, parent_pointer_), *(int*)get_key(new_page, 0, cursor->table->row_size), new_page_num);
 }
 
 void insert(Cursor* cursor, int key, Row* value){

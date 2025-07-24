@@ -58,17 +58,17 @@ int main(){
 
     Cursor* cursor = start_connection("database.db", 3, cd, row_size(&new_row, 3));
 
-    for (int i = 0; i < 11; i++){
-        *(int*)new_row.columns[0].data = 2*i;
-        insert(cursor, i, &new_row);
-    }
-    *(int*)new_row.columns[0].data = -99;
-    insert(cursor, 12, &new_row);
+    // for (int i = 0; i < 11; i++){
+    //     *(int*)new_row.columns[0].data = 2*i;
+    //     insert(cursor, i, &new_row);
+    // }
+    // *(int*)new_row.columns[0].data = -99;
+    // insert(cursor, 12, &new_row);
 
-    void* testr = get_page(cursor->table->pager, 0);
+    void* testr = get_page(cursor->table->pager, 1);
     
     Row final;
-    deserialize_row(&final, cursor->table->column_count, memory_step(get_key(testr, 0, cursor->table->row_size), sizeof(int)));
+    deserialize_row(&final, cursor->table->column_count, memory_step(get_key(testr, 1, cursor->table->row_size), sizeof(int)));
     
     close_connection(cursor);
 
