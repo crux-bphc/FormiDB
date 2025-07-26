@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <errno.h>
 
 // Memory navigation
 void* memory_step(void* src, size_t offset);
@@ -53,7 +54,7 @@ void* get_page(Pager* pager, int page_num);
 // Database connection handlers
 Cursor* start_connection(const char* fname, int column_count, DataType* column_descriptor, size_t row_size); // Store column count and column descriptor metadata in a json file
 
-void close_connection(Cursor* cursor);
+bool close_connection(Cursor* cursor);
 
 
 // Btree 

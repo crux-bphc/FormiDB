@@ -29,27 +29,27 @@ size_t row_size(Row* row, int column_count){
 void serialize_row(Row* row, int column_count, void* dest){
     size_t pos = 0;
     for (int i = 0; i < column_count; i++){
-        memcpy(dest + pos, &(row->columns[i].data_type), sizeof(DataType));
+        memcpy(memory_step(dest, pos), &(row->columns[i].data_type), sizeof(DataType));
         pos += sizeof(DataType);
-        memcpy(dest + pos, &(row->columns[i].data_size), sizeof(size_t));
+        memcpy(memory_step(dest, pos), &(row->columns[i].data_size), sizeof(size_t));
         pos += sizeof(size_t);
         // Writing acutal data
         switch(row->columns[i].data_type){
             case DB3_INT:
                 int data_int = *(int*)(row->columns[i].data);
-                memcpy(dest + pos, &(data_int), row->columns[i].data_size);
+                memcpy(memory_step(dest, pos), &(data_int), row->columns[i].data_size);
                 pos += row->columns[i].data_size;
                 break;
 
             case DB3_FLOAT:
                 float data_float = *(float*)(row->columns[i].data);
-                memcpy(dest + pos, &(data_float), row->columns[i].data_size);
+                memcpy(memory_step(dest, pos), &(data_float), row->columns[i].data_size);
                 pos += row->columns[i].data_size;
                 break;
 
             case DB3_STRING:
                 char* data_str = (char*)(row->columns[i].data);
-                memcpy(dest + pos, data_str, row->columns[i].data_size);
+                memcpy(memory_step(dest, pos), data_str, row->columns[i].data_size);
                 pos += row->columns[i].data_size;
                 break;
         }
@@ -60,13 +60,13 @@ void deserialize_row(Row* row, int column_count, void* src){
     size_t pos = 0;
     row->columns = (Column*)malloc(sizeof(Column)*column_count);
     for (int i = 0; i < column_count; i++){
-        memcpy(&(row->columns[i].data_type), src + pos, sizeof(DataType));
+        memcpy(&(row->columns[i].data_type), memory_step(src, pos), sizeof(DataType));
         pos += sizeof(DataType);
-        memcpy(&(row->columns[i].data_size), src + pos, sizeof(size_t));
+        memcpy(&(row->columns[i].data_size), memory_step(src, pos), sizeof(size_t));
         pos += sizeof(size_t);
 
         void* data = malloc(row->columns[i].data_size);
-        memcpy(data, src + pos, row->columns[i].data_size);
+        memcpy(data, memory_step(src, pos), row->columns[i].data_size);
         row->columns[i].data = data;
 
         pos += row->columns[i].data_size;
@@ -77,7 +77,7 @@ void deserialize_row(Row* row, int column_count, void* src){
 Pager* pager_open(const char* fname){
     int fd = open(fname, O_RDWR | O_CREAT, 0600);
     if (fd == -1){
-        exit(EXIT_FAILURE);
+        return NULL;
     }
 
     off_t file_length = lseek(fd, 0, SEEK_END);
@@ -96,11 +96,12 @@ bool pager_flush(Pager* pager, int page_num){
     if (pager->pages[page_num]){
         off_t advance = lseek(pager->file_descriptor, page_num*PAGE_SIZE, SEEK_SET);
         if (advance == -1)
-            exit(EXIT_FAILURE);
+            return false;
 
         ssize_t bytes_written = write(pager->file_descriptor, pager->pages[page_num], PAGE_SIZE);
         if (bytes_written == -1)    
-            exit(EXIT_FAILURE);
+            return false;
+
         return true;
     }
     return false;
@@ -129,6 +130,10 @@ Cursor* start_connection(const char* fname, int column_count, DataType* column_d
     Cursor* cursor = (Cursor*)malloc(sizeof(Cursor));
 
     table->pager = pager_open(fname);
+
+    if (table->pager == NULL)
+        return NULL;
+
     table->column_count = column_count;
     table->column_descriptor = column_descriptor;
     table->root_page_num = 0;
@@ -144,22 +149,27 @@ Cursor* start_connection(const char* fname, int column_count, DataType* column_d
     return cursor;
 }
 
-void close_connection(Cursor* cursor){
+bool close_connection(Cursor* cursor){
     Table* table = cursor->table;
     Pager* pager = table->pager;
 
     for (int i = 0; i < pager->num_pages; i++){
-        if (pager_flush(pager, i))
+        if (pager_flush(pager, i) && errno == 0)
             free(pager->pages[i]);
+        if (errno)
+            return false;
+        pager->pages[i] = NULL;
     }
 
     int cls = close(pager->file_descriptor);
     if (cls == -1)
-        exit(EXIT_FAILURE);
+        return false;
 
     free(pager);
     free(table);
     free(cursor);
+
+    return true;
 }
 
 // Btree
@@ -374,7 +384,7 @@ void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num){
             exit(EXIT_FAILURE);
         }
 
-        return find_leaf_to_insert(cursor, key, *(int*)get_key(curr_page, nearest_smallest_pos, row_size));
+        return find_leaf_to_insert(cursor, key, *(int*)get_pointer(curr_page, nearest_smallest_pos, row_size));
     }
     int idx_to_insert = num_cells(curr_page);
 

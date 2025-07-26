@@ -50,27 +50,36 @@ int main(){
 
     new_row.columns[2].data_type = DB3_STRING;
     char test[] = "the one";
-    new_row.columns[2].data_size = 300;
-    new_row.columns[2].data = calloc(300, sizeof(char));
+    new_row.columns[2].data_size = 1311;
+    new_row.columns[2].data = calloc(1311, sizeof(char));
     strcpy((char*)new_row.columns[2].data, test);
 
     // Test
 
     Cursor* cursor = start_connection("database.db", 3, cd, row_size(&new_row, 3));
 
-    // for (int i = 0; i < 11; i++){
-    //     *(int*)new_row.columns[0].data = 2*i;
-    //     insert(cursor, i, &new_row);
-    // }
+    if (!cursor)
+        printf("Error opening cursor");
+
+    for (int i = 0; i < 4; i++){
+        *(int*)new_row.columns[0].data = 2*i;
+        insert(cursor, i, &new_row);
+    }
+
+    *(int*)new_row.columns[0].data = -99;
+    insert(cursor, 4, &new_row);
     // *(int*)new_row.columns[0].data = -99;
     // insert(cursor, 12, &new_row);
 
-    void* testr = get_page(cursor->table->pager, 1);
+    //void* testr = get_page(cursor->table->pager, 2);
     
     Row final;
-    deserialize_row(&final, cursor->table->column_count, memory_step(get_key(testr, 1, cursor->table->row_size), sizeof(int)));
+    //deserialize_row(&final, cursor->table->column_count, memory_step(get_key(testr, 1, cursor->table->row_size), sizeof(int)));
     
-    close_connection(cursor);
+    bool closed = close_connection(cursor);
+
+    if (!closed)
+        printf("Error closing connection");
 
     // Free
     for (int i = 0; i < 3; i++){
