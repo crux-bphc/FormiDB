@@ -72,7 +72,6 @@ int main(){
     // insert(cursor, 12, &new_row);
 
     //void* testr = get_page(cursor->table->pager, 2);
-    
     Row final;
     //deserialize_row(&final, cursor->table->column_count, memory_step(get_key(testr, 1, cursor->table->row_size), sizeof(int)));
     
