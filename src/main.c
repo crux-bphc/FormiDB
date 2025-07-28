@@ -61,20 +61,28 @@ int main(){
     if (!cursor)
         printf("Error opening cursor");
 
-    for (int i = 0; i < 100; i++){
-        *(int*)new_row.columns[0].data = 2*i;
-        insert(cursor, i, &new_row);
-    }
+    // for (int i = 0; i < 8; i++){
+    //     *(int*)new_row.columns[0].data = 2*i;
+    //     insert(cursor, i, &new_row);
+    // }
 
+    // insert(cursor, 9, &new_row);
     // *(int*)new_row.columns[0].data = -99;
     // insert(cursor, 4, &new_row);
     // *(int*)new_row.columns[0].data = -99;
     // insert(cursor, 12, &new_row);
 
-    //void* testr = get_page(cursor->table->pager, 2);
-    Row final;
+    //void* testr = get_page(cursor->table->pager, 0);
+    
     //deserialize_row(&final, cursor->table->column_count, memory_step(get_key(testr, 1, cursor->table->row_size), sizeof(int)));
     
+    Row* result = search(cursor, 0);
+
+    if (result == NULL){
+        printf("NO");
+        exit(EXIT_FAILURE);
+    }
+
     bool closed = close_connection(cursor);
 
     if (!closed)
@@ -83,11 +91,14 @@ int main(){
     // Free
     for (int i = 0; i < 3; i++){
         free(new_row.columns[i].data);
+        free(result->columns[i].data);
         // if (final.columns[i].data)
         //     free(final.columns[i].data);
     }
 
     free(new_row.columns);
+    free(result->columns);
+    free(result);
     // if (final.columns)
     //     free(final.columns);
     // free(dest);
