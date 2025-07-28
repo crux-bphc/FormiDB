@@ -66,6 +66,7 @@ typedef enum{
 typedef enum{
     FIND_NEAREST_SMALLEST,
     FIND_NEAREST_LARGEST,
+    FIND_EXACT
 } FindType;
 
 // Helpers
@@ -100,12 +101,12 @@ void set_key(void* page, int cell_num, size_t row_size, int key);
 void* get_pointer(void* page, int cell_num, size_t row_size);
 void set_pointer(void* page, int cell_num, size_t row_size, int pointer);
 
-// Node input/find handlers
+// Node input handlers
 int find_free_page(Cursor* cursor);
 
 int init_root(Cursor* cursor, bool is_leaf);
 
-void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num);
+void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num, bool search_exact);
 
 int bin_search(Cursor* cursor, int key, FindType find_type);
 
@@ -116,6 +117,9 @@ void insert_into_internal(Cursor* cursor, void* page, int key, int assoc_child_p
 void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* value, int new_alloc_page);
 
 void insert(Cursor* cursor, int key, Row* value);
+
+// Node search handlers
+Row* search(Cursor* cursor, int key);
 
 
 #endif

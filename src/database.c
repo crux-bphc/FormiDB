@@ -308,7 +308,6 @@ int bin_search(Cursor* cursor, int key, FindType find_type){
     int left = 0, right = num_cells(curr_page) - 1;
     int nearest_smallest_pos = 0, nearest_largest_pos = num_cells(curr_page);
     
-    
     while (left <= right){
         int mid = (left + right) / 2;
         if (*(int*)get_key(curr_page, mid, row_size) > key){
@@ -319,14 +318,20 @@ int bin_search(Cursor* cursor, int key, FindType find_type){
             left = mid + 1;
             nearest_smallest_pos = mid;
         }
-        else
-            return -1;
+        else{
+            if (find_type != FIND_EXACT)
+                return -1;
+            
+            return mid;
+        }
     }
 
     if (find_type == FIND_NEAREST_LARGEST)
         return nearest_largest_pos;
     else if (find_type == FIND_NEAREST_SMALLEST)
         return nearest_smallest_pos;
+    else
+        return -1;
 }
 
 // Returns page to which the old node was copied to
@@ -366,7 +371,7 @@ int init_root(Cursor* cursor, bool is_leaf){
 }
 
 // Returns page as well as the index at which the new pair is to be inserted
-void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num){
+void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num, bool search_exact){
     void* curr_page = get_page(cursor->table->pager, curr_page_num);
     
     size_t row_size = cursor->table->row_size;
@@ -375,17 +380,22 @@ void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num){
     if (node_type(curr_page) == NODE_INTERNAL){
         int left = 0, right = num_cells(curr_page) - 1;
         if (key < *(int*)get_key(curr_page, 0, row_size))
-            return find_leaf_to_insert(cursor, key, *(int*)left_most_child(curr_page));
-        
-        int nearest_smallest_pos = bin_search(cursor, key, FIND_NEAREST_SMALLEST);
+            return find_leaf_to_insert(cursor, key, *(int*)left_most_child(curr_page), search_exact);
 
-        if (nearest_smallest_pos == -1){
+        int target = -1;
+        if (search_exact)
+            target = bin_search(cursor, key, FIND_EXACT);
+        else
+            target = bin_search(cursor, key, FIND_NEAREST_SMALLEST);
+
+        if (target == -1){
             fprintf(stderr, "Duplicate key");
             exit(EXIT_FAILURE);
         }
 
-        return find_leaf_to_insert(cursor, key, *(int*)get_pointer(curr_page, nearest_smallest_pos, row_size));
+        return find_leaf_to_insert(cursor, key, *(int*)get_pointer(curr_page, target, row_size), search_exact);
     }
+
     int idx_to_insert = num_cells(curr_page);
 
     if (idx_to_insert == 0){
@@ -393,10 +403,15 @@ void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num){
         return curr_page;
     }
 
-    idx_to_insert = bin_search(cursor, key, FIND_NEAREST_LARGEST);
+    int idx = -1;
+    if (search_exact)
+        idx = bin_search(cursor, key, FIND_EXACT);
+    else
+        idx = bin_search(cursor, key, FIND_NEAREST_LARGEST);
 
-    if (idx_to_insert == -1){
-        fprintf(stderr, "Duplicate key");
+    // To be removed when error handling is implemented
+    if (idx == -1){
+        (search_exact) ? fprintf(stderr, "Invalid key") : fprintf(stderr, "Duplicate key");
         close_connection(cursor);
         exit(EXIT_FAILURE);
     }
@@ -500,6 +515,10 @@ void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* v
 }
 
 void insert(Cursor* cursor, int key, Row* value){
-    void* ins_leaf = find_leaf_to_insert(cursor, key, 0);
+    void* ins_leaf = find_leaf_to_insert(cursor, key, 0, false);
     insert_into_leaf(cursor, ins_leaf, key, value);
+}
+
+Row* search(Cursor* cursor, int key){
+
 }

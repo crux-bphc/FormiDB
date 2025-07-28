@@ -61,13 +61,13 @@ int main(){
     if (!cursor)
         printf("Error opening cursor");
 
-    for (int i = 0; i < 4; i++){
+    for (int i = 0; i < 100; i++){
         *(int*)new_row.columns[0].data = 2*i;
         insert(cursor, i, &new_row);
     }
 
-    *(int*)new_row.columns[0].data = -99;
-    insert(cursor, 4, &new_row);
+    // *(int*)new_row.columns[0].data = -99;
+    // insert(cursor, 4, &new_row);
     // *(int*)new_row.columns[0].data = -99;
     // insert(cursor, 12, &new_row);
 
