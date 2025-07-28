@@ -75,7 +75,6 @@ int main(){
     //void* testr = get_page(cursor->table->pager, 0);
     
     //deserialize_row(&final, cursor->table->column_count, memory_step(get_key(testr, 1, cursor->table->row_size), sizeof(int)));
-    
     Row* result = search(cursor, 0);
 
     if (result == NULL){
