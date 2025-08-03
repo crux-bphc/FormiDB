@@ -121,5 +121,11 @@ void insert(Cursor* cursor, int key, Row* value);
 // Node search handlers
 Row* search(Cursor* cursor, int key);
 
+/*
+    Helps cleanup the row object after search and parser allocations in the future,
+    would be used in parallel with smart pointers as a custom deleter (when implementing a TUI)
+*/
+void free_row(Row* row, int column_count);
+
 
 #endif

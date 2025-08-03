@@ -50,8 +50,8 @@ int main(){
 
     new_row.columns[2].data_type = DB3_STRING;
     char test[] = "the one";
-    new_row.columns[2].data_size = 1311;
-    new_row.columns[2].data = calloc(1311, sizeof(char));
+    new_row.columns[2].data_size = 1940;
+    new_row.columns[2].data = calloc(1940, sizeof(char));
     strcpy((char*)new_row.columns[2].data, test);
 
     // Test
@@ -66,21 +66,23 @@ int main(){
     //     insert(cursor, i, &new_row);
     // }
 
-    // insert(cursor, 9, &new_row);
+    // insert(cursor, 19, &new_row);
     // *(int*)new_row.columns[0].data = -99;
-    // insert(cursor, 4, &new_row);
-    // *(int*)new_row.columns[0].data = -99;
-    // insert(cursor, 12, &new_row);
-
-    //void* testr = get_page(cursor->table->pager, 0);
+    // insert(cursor, 15, &new_row);
     
-    //deserialize_row(&final, cursor->table->column_count, memory_step(get_key(testr, 1, cursor->table->row_size), sizeof(int)));
+    *(int*)new_row.columns[0].data = 17;
+    insert(cursor, 17, &new_row);
+    *(int*)new_row.columns[0].data = 15;
+    insert(cursor, 15, &new_row);
+    *(int*)new_row.columns[0].data = 16;
+    insert(cursor, 16, &new_row);
 
-    Row* result = search(cursor, 0);
+
+    Row* result = search(cursor, 15);
 
     // Debug purposes
     if (result == NULL){
-        printf("NO");
+        printf("Search failed");
         exit(EXIT_FAILURE);
     }
 

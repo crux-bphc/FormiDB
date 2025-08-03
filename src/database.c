@@ -458,8 +458,13 @@ void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* v
 
     int idx_to_insert = bin_search(cursor, key, FIND_NEAREST_LARGEST);
 
-    for (int i = split_point; i < leaf_order - 1; i++){
-        memcpy(get_key(new_page, i - split_point, cursor->table->row_size), 
+    if (idx_to_insert == -1){
+        printf("Duplicate key");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = split_point - 1; i < leaf_order - 1; i++){
+        memcpy(get_key(new_page, i - split_point + 1, cursor->table->row_size), 
                     get_key(page_to_split, i, cursor->table->row_size), sizeof(int) + cursor->table->row_size);
     }
 
@@ -469,7 +474,7 @@ void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* v
                     get_key(page_to_split, i - 1, cursor->table->row_size), sizeof(int) + cursor->table->row_size);
         }     
         set_key(page_to_split, idx_to_insert, cursor->table->row_size, key);
-        serialize_row(page_to_split, cursor->table->column_count, 
+        serialize_row(value, cursor->table->column_count, 
                     memory_step(get_key(page_to_split, idx_to_insert, cursor->table->row_size), sizeof(int)));   
     }
     else{
@@ -513,4 +518,17 @@ Row* search(Cursor* cursor, int key){
     Row* result = malloc(sizeof(Row));
     deserialize_row(result, cursor->table->column_count, memory_step(get_key(leaf_node, cell_num, cursor->table->row_size), sizeof(int)));
     return result;
+}
+
+// Memory cleanup handlers
+void free_row(Row* row, int column_count){
+    if (row){
+        for (int i = 0; i < column_count; i++){
+            if (row->columns[i].data)
+                free(row->columns[i].data);
+        }
+        if (row->columns)
+            free(row->columns);
+        free(row);
+    }
 }
