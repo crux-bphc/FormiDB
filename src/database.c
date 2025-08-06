@@ -555,6 +555,8 @@ void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, in
         set_key(new_page, i, cursor->table->row_size, temporary[i].key);
         set_pointer(new_page, i, cursor->table->row_size, temporary[i].assoc_child);
     }
+
+    set_parent_pointer(new_page, parent_pointer(page_to_split));
     set_num_cells(page_to_split, new_node_copy_start - 1);
     insert_into_internal(cursor, get_page(pager, parent_pointer(page_to_split)), temporary[new_node_copy_start - 1].key, assoc_child_page);
 }
