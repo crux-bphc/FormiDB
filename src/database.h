@@ -69,6 +69,12 @@ typedef enum{
     FIND_EXACT
 } FindType;
 
+// Temporary for internal node splitting, will be replaced
+typedef struct{
+    int key;
+    int assoc_child;
+} Pair;
+
 // Helpers
 size_t data_space(NodeType node_type); // Space for actual data excluding metadata
 int max_nodes(NodeType node_type, size_t row_size);
@@ -114,7 +120,9 @@ void insert_into_leaf(Cursor* cursor, void* page, int key, Row* value);
 
 void insert_into_internal(Cursor* cursor, void* page, int key, int assoc_child_page);
 
-void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* value, int new_alloc_page);
+void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* value);
+
+void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, int assoc_child_page);
 
 void insert(Cursor* cursor, int key, Row* value);
 

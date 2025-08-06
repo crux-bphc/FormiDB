@@ -61,21 +61,21 @@ int main(){
     if (!cursor)
         printf("Error opening cursor");
 
-    // for (int i = 0; i < 8; i++){
-    //     *(int*)new_row.columns[0].data = 2*i;
-    //     insert(cursor, i, &new_row);
-    // }
+    for (int i = 0; i < 50; i++){
+        *(int*)new_row.columns[0].data = 2*i;
+        insert(cursor, i, &new_row);
+    }
 
     // insert(cursor, 19, &new_row);
     // *(int*)new_row.columns[0].data = -99;
     // insert(cursor, 15, &new_row);
     
-    *(int*)new_row.columns[0].data = 17;
-    insert(cursor, 17, &new_row);
-    *(int*)new_row.columns[0].data = 15;
-    insert(cursor, 15, &new_row);
-    *(int*)new_row.columns[0].data = 16;
-    insert(cursor, 16, &new_row);
+    // *(int*)new_row.columns[0].data = 17;
+    // insert(cursor, 17, &new_row);
+    // *(int*)new_row.columns[0].data = 15;
+    // insert(cursor, 15, &new_row);
+    // *(int*)new_row.columns[0].data = 16;
+    // insert(cursor, 16, &new_row);
 
 
     Row* result = search(cursor, 15);
@@ -83,7 +83,6 @@ int main(){
     // Debug purposes
     if (result == NULL){
         printf("Search failed");
-        exit(EXIT_FAILURE);
     }
 
     bool closed = close_connection(cursor);
@@ -94,14 +93,14 @@ int main(){
     // Free
     for (int i = 0; i < 3; i++){
         free(new_row.columns[i].data);
-        free(result->columns[i].data);
         // if (final.columns[i].data)
         //     free(final.columns[i].data);
     }
 
     free(new_row.columns);
-    free(result->columns);
-    free(result);
+
+    if (result)
+        free_row(result, 3);
     // if (final.columns)
     //     free(final.columns);
     // free(dest);
