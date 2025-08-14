@@ -76,7 +76,7 @@ int main(){
     insert(cursor, 21, &new_row);
 
 
-    Row* result = search(cursor, 15);
+    Row* result = search(cursor, 21);
 
     // Debug purposes
     if (result == NULL){

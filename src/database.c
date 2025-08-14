@@ -553,23 +553,24 @@ void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, in
         i++;
     }
 
+    set_left_most_child(new_page, temporary[new_node_copy_start - 1].assoc_child);
     for (int i = new_node_copy_start; i < internal_order; i++){
         set_key(new_page, i - new_node_copy_start, cursor->table->row_size, temporary[i].key);
         set_pointer(new_page, i - new_node_copy_start, cursor->table->row_size, temporary[i].assoc_child);
         void* child_page = get_page(pager, temporary[i].assoc_child);
-        set_parent_pointer(child_page, parent_pointer(page_to_split));
+        set_parent_pointer(child_page, new_page_num);
     }
 
     for (int i = 0; i < new_node_copy_start - 1; i++){
-        set_key(new_page, i, cursor->table->row_size, temporary[i].key);
-        set_pointer(new_page, i, cursor->table->row_size, temporary[i].assoc_child);
+        set_key(page_to_split, i, cursor->table->row_size, temporary[i].key);
+        set_pointer(page_to_split, i, cursor->table->row_size, temporary[i].assoc_child);
     }
 
     set_num_keys(page_to_split, new_node_copy_start - 1);
     set_parent_pointer(new_page, parent_pointer(page_to_split));
     set_num_keys(page_to_split, new_node_copy_start - 1);
     void* parent_page = get_page(pager, parent_pointer(page_to_split));
-    insert_into_internal(cursor, parent_page, temporary[new_node_copy_start - 1].key, assoc_child_page);
+    insert_into_internal(cursor, parent_page, temporary[new_node_copy_start - 1].key, new_page_num);
 }
 
 void insert(Cursor* cursor, int key, Row* value){
