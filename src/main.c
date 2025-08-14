@@ -61,21 +61,19 @@ int main(){
     if (!cursor)
         printf("Error opening cursor");
 
-    for (int i = 0; i < 50; i++){
-        *(int*)new_row.columns[0].data = 2*i;
-        insert(cursor, i, &new_row);
-    }
-
-    // insert(cursor, 19, &new_row);
-    // *(int*)new_row.columns[0].data = -99;
-    // insert(cursor, 15, &new_row);
     
-    // *(int*)new_row.columns[0].data = 17;
-    // insert(cursor, 17, &new_row);
-    // *(int*)new_row.columns[0].data = 15;
-    // insert(cursor, 15, &new_row);
-    // *(int*)new_row.columns[0].data = 16;
-    // insert(cursor, 16, &new_row);
+    *(int*)new_row.columns[0].data = 5;
+    insert(cursor, 5, &new_row);
+    *(int*)new_row.columns[0].data = 12;
+    insert(cursor, 12, &new_row);
+    *(int*)new_row.columns[0].data = 1;
+    insert(cursor, 1, &new_row);
+    *(int*)new_row.columns[0].data = 2;
+    insert(cursor, 2, &new_row);
+    *(int*)new_row.columns[0].data = 18;
+    insert(cursor, 18, &new_row);
+    *(int*)new_row.columns[0].data = 21;
+    insert(cursor, 21, &new_row);
 
 
     Row* result = search(cursor, 15);
