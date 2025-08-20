@@ -116,15 +116,15 @@ void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num, bool searc
 
 int bin_search(Cursor* cursor, int key, FindType find_type);
 
-void insert_into_leaf(Cursor* cursor, void* page, int key, Row* value);
+int insert_into_leaf(Cursor* cursor, void* page, int key, Row* value);
 
 void insert_into_internal(Cursor* cursor, void* page, int key, int assoc_child_page);
 
-void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* value);
+int split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* value);
 
 void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, int assoc_child_page);
 
-void insert(Cursor* cursor, int key, Row* value);
+int insert(Cursor* cursor, int key, Row* value);
 
 // Node search handlers
 Row* search(Cursor* cursor, int key);

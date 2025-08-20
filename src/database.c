@@ -400,21 +400,15 @@ void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num, bool searc
         else
             target = bin_search(cursor, key, FIND_NEAREST_SMALLEST);
 
-        if (target == -1 && !search_exact){
-            fprintf(stderr, "Duplicate key");
-            exit(EXIT_FAILURE);
-        }
-
         return find_leaf_to_insert(cursor, key, *(int*)get_pointer(curr_page, target, row_size), search_exact);
     }
 
     return curr_page;
 }
 
-void insert_into_leaf(Cursor* cursor, void* page, int key, Row* value){
+int insert_into_leaf(Cursor* cursor, void* page, int key, Row* value){
     if (num_cells(page) == max_nodes(NODE_LEAF, cursor->table->row_size)){
-        split_insert_into_leaf(cursor, page, key, value);
-        return;
+        return split_insert_into_leaf(cursor, page, key, value);
     }
     int idx_to_insert = num_cells(page);
 
@@ -423,7 +417,7 @@ void insert_into_leaf(Cursor* cursor, void* page, int key, Row* value){
 
     if (idx_to_insert == -1){
         fprintf(stderr, "Duplicate key");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     for (int i = num_cells(page); i > idx_to_insert; i--){
@@ -432,6 +426,7 @@ void insert_into_leaf(Cursor* cursor, void* page, int key, Row* value){
     set_key(page, idx_to_insert, cursor->table->row_size, key);
     serialize_row(value, cursor->table->column_count, memory_step(get_key(page, idx_to_insert, cursor->table->row_size), sizeof(int)));
     set_num_cells(page, num_cells(page) + 1);
+    return 0;
 }
 
 void insert_into_internal(Cursor* cursor, void* page, int key, int assoc_child_page){
@@ -453,7 +448,7 @@ void insert_into_internal(Cursor* cursor, void* page, int key, int assoc_child_p
     }
 }
 
-void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* value){
+int split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* value){
     int leaf_order = max_nodes(NODE_LEAF, cursor->table->row_size) + 1;
     Pager* pager = cursor->table->pager;
     int split_point = ceil((double)leaf_order/2);
@@ -473,7 +468,7 @@ void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* v
 
     if (idx_to_insert == -1){
         printf("Duplicate key");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     for (int i = split_point - 1; i < leaf_order - 1; i++){
@@ -515,6 +510,7 @@ void split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* v
     cursor->page_num = parent_pointer_;
     void* parent_page = get_page(pager, parent_pointer_);
     insert_into_internal(cursor, parent_page, *(int*)get_key(new_page, 0, cursor->table->row_size), new_page_num);
+    return 0;
 }
 
 void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, int assoc_child_page){
@@ -573,9 +569,9 @@ void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, in
     insert_into_internal(cursor, parent_page, temporary[new_node_copy_start - 1].key, new_page_num);
 }
 
-void insert(Cursor* cursor, int key, Row* value){
+int insert(Cursor* cursor, int key, Row* value){
     void* ins_leaf = find_leaf_to_insert(cursor, key, 0, false);
-    insert_into_leaf(cursor, ins_leaf, key, value);
+    return insert_into_leaf(cursor, ins_leaf, key, value);
 }
 
 Row* search(Cursor* cursor, int key){
