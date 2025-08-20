@@ -205,7 +205,7 @@ size_t data_space(NodeType node_type){
 int max_nodes(NodeType node_type, size_t row_size){
     switch (node_type){
         case NODE_INTERNAL:
-            return data_space(NODE_INTERNAL)/(sizeof(int) + sizeof(int)) - 507;
+            return data_space(NODE_INTERNAL)/(sizeof(int) + sizeof(int));
 
         case NODE_LEAF:
             return data_space(NODE_LEAF)/(sizeof(int) + row_size);
