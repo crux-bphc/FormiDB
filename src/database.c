@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include "include/database.h"
 
-// #define int32_t int
+#define int32_t int
 
 // Memory navigation
 void* memory_step(void* origin, size_t offset){
@@ -158,8 +158,6 @@ bool close_connection(Cursor* cursor){
     for (int i = 0; i < pager->num_pages; i++){
         if (pager_flush(pager, i) && errno == 0)
             free(pager->pages[i]);
-        if (errno)
-            return false;
         pager->pages[i] = NULL;
     }
 
@@ -394,11 +392,7 @@ void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num, bool searc
         if (key < *(int*)get_key(curr_page, 0, row_size))
             return find_leaf_to_insert(cursor, key, *(int*)left_most_child(curr_page), search_exact);
 
-        int target = -1;
-        if (search_exact)
-            target = bin_search(cursor, key, FIND_EXACT);
-        else
-            target = bin_search(cursor, key, FIND_NEAREST_SMALLEST);
+        int target = bin_search(cursor, key, FIND_EXACT);
 
         return find_leaf_to_insert(cursor, key, *(int*)get_pointer(curr_page, target, row_size), search_exact);
     }
@@ -449,6 +443,13 @@ void insert_into_internal(Cursor* cursor, void* page, int key, int assoc_child_p
 }
 
 int split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* value){
+    int idx_to_insert = bin_search(cursor, key, FIND_NEAREST_LARGEST);
+
+    if (idx_to_insert == -1){
+        printf("Duplicate key");
+        return -1;
+    }
+
     int leaf_order = max_nodes(NODE_LEAF, cursor->table->row_size) + 1;
     Pager* pager = cursor->table->pager;
     int split_point = ceil((double)leaf_order/2);
@@ -463,13 +464,6 @@ int split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* va
     set_is_root(new_page, 0);
     set_node_type(new_page, NODE_LEAF);
     set_num_cells(new_page, leaf_order - split_point);
-
-    int idx_to_insert = bin_search(cursor, key, FIND_NEAREST_LARGEST);
-
-    if (idx_to_insert == -1){
-        printf("Duplicate key");
-        return -1;
-    }
 
     for (int i = split_point - 1; i < leaf_order - 1; i++){
         memcpy(get_key(new_page, i - split_point + 1, cursor->table->row_size), 
@@ -525,7 +519,7 @@ void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, in
     
     set_is_root(new_page, 0);
     set_node_type(new_page, NODE_INTERNAL);
-    set_num_cells(new_page, internal_order - new_node_copy_start);
+    set_num_keys(new_page, internal_order - new_node_copy_start);
 
     if (parent_pointer(page_to_split) == -1){
         int old_page_num = init_root(cursor, false);
