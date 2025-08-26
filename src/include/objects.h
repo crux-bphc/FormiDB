@@ -1,6 +1,5 @@
 #ifndef OBJECTS_H
 #define OBJECTS_H
-#define STRING_DEF_ALLOC 100
 #include <stdlib.h>
 
 typedef enum{
