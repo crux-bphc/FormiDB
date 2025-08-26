@@ -74,7 +74,7 @@ int main(){
     res = insert(cursor, 18, &new_row);
     *(int*)new_row.columns[0].data = 21;
     res = insert(cursor, 21, &new_row);
-    // int res = insert(cursor, 2, &new_row);
+    res = insert(cursor, 2, &new_row);
 
 
     Row* result = search(cursor, 21);
