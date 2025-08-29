@@ -25,8 +25,16 @@ typedef struct pg_cache{
 } pg_cache;
 
 uint32_t hash(int key, int factor);
+
+// Cache specific functions
 pg_cache* init_cache();
-void cache_page(int page_num, void* page);
+void init_new_hdr();
+void cache_page(pg_cache* cache, int page_num, void* page);
 void* cache_fetch();
+
+// Hash Table functions
+
+
+// LRU list functions
 
 #endif
