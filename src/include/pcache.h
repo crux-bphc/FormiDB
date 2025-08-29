@@ -24,17 +24,28 @@ typedef struct pg_cache{
     uint32_t num_buckets;
 } pg_cache;
 
-uint32_t hash(int key, int factor);
+typedef enum{
+    FETCH_OK,
+    FETCH_BAD
+} fetch_status;
+
+typedef struct{
+    void* page;
+    fetch_status status;
+} fetch_res;
+
+uint32_t hash(uint32_t key, uint32_t factor);
 
 // Cache specific functions
 pg_cache* init_cache();
 void init_new_hdr();
-void cache_page(pg_cache* cache, int page_num, void* page);
-void* cache_fetch();
+void cache_page(pg_cache* cache, uint32_t page_num, void* page);
+fetch_res* fetch_page(pg_cache* cache, uint32_t page_num);
 
 // Hash Table functions
-
+void evict_from_table(pg_cache* cache, pg_hdr* node);
 
 // LRU list functions
+void push_to_end(pg_cache* cache, pg_hdr* node);
 
 #endif
