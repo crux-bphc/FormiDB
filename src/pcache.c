@@ -62,6 +62,23 @@ fetch_res* fetch_page(pg_cache* cache, uint32_t page_num){
             if (trav->page_num == page_num){
                 res->page = trav->page;
                 res->status = FETCH_OK;
+
+                pg_hdr* prev = trav->lru_prev;
+                pg_hdr* next = trav->lru_next;
+
+                if (prev == NULL){
+                    cache->tail = cache->tail->lru_next;
+                    cache->tail->lru_prev = NULL;
+                }
+                else{
+                    prev->lru_next = next;
+                    next->lru_prev = prev;
+                }
+                trav->lru_prev = cache->head;
+                trav->lru_next = NULL;
+                cache->head->lru_next = trav;
+                cache->head = trav;
+
                 fetched = true;
                 break;
             }
@@ -88,11 +105,15 @@ void evict_from_table(pg_cache* cache, pg_hdr* node){
             else{
                 prev->hash_chain_next = trav->hash_chain_next;
             }
+            pg_hdr* next = trav->hash_chain_next;
             free(trav);
+            trav = next;
             break;
         }
-        prev = trav;
-        trav = trav->hash_chain_next;
+        else{
+            prev = trav;
+            trav = trav->hash_chain_next;
+        }
     }
     cache->num_keys -= 1;
 }
@@ -116,4 +137,12 @@ void push_to_end(pg_cache* cache, pg_hdr* node){
 }
 
 
-
+// Memory handlers
+void clear_cache(pg_cache* cache){
+    pg_hdr* trav = cache->head;
+    while (trav != NULL){
+        pg_hdr* next = trav->lru_next;
+        evict_from_table(cache, trav);
+        trav = next;
+    }
+}

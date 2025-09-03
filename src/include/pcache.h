@@ -48,4 +48,7 @@ void evict_from_table(pg_cache* cache, pg_hdr* node);
 // LRU list functions
 void push_to_end(pg_cache* cache, pg_hdr* node);
 
+// Memory handlers
+void clear_cache_memory(pg_cache* cache);
+
 #endif
