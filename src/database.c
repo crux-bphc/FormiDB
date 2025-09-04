@@ -156,7 +156,7 @@ bool close_connection(Cursor* cursor){
     Pager* pager = table->pager;
 
     for (int i = 0; i < pager->num_pages; i++){
-        if (pager_flush(pager, i) && errno == 0)
+        if (pager_flush(pager, i))
             free(pager->pages[i]);
         pager->pages[i] = NULL;
     }
