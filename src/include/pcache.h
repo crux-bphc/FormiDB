@@ -44,11 +44,12 @@ fetch_res* fetch_page(pg_cache* cache, uint32_t page_num);
 
 // Hash Table functions
 void evict_from_table(pg_cache* cache, pg_hdr* node);
+void mark_dirty(pg_cache* cache, int page_num, bool dirty);
 
 // LRU list functions
-void push_to_end(pg_cache* cache, pg_hdr* node);
+void emplace_end(pg_cache* cache, pg_hdr* node);
 
 // Memory handlers
-void clear_cache_memory(pg_cache* cache);
+void clear_cache(pg_cache* cache);
 
 #endif
