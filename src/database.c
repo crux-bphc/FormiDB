@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <stdint.h>
-#include "include/database.h"
+#include "../include/database.h"
 
 #define int32_t int
 

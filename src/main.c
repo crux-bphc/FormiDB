@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "include/database.h"
+#include "../include/database.h"
 #include "string.h"
 
 void write_preprocess_metadata(int row_size, DataType* column_metadata, int num_cols){

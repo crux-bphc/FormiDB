@@ -1,4 +1,5 @@
-btree/build
+migr/btree/build
 tests/build
 src/build
-old/build
+migr/old/build
+cmake-build-debug

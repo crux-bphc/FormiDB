@@ -1,4 +1,4 @@
-#include "../src/include/pcache.h"
+#include "../include/pcache.h"
 
 int main(){
     pg_cache* cache = init_cache();
