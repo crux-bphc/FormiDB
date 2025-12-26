@@ -3,3 +3,4 @@ tests/build
 src/build
 migr/old/build
 cmake-build-debug
+.idea

@@ -13,6 +13,7 @@ add_executable(DBClone
         src/main.c
         src/pcache.c
         src/pcache.c
+        include/pcache.h
 )
 
 target_link_libraries(DBClone PRIVATE m)

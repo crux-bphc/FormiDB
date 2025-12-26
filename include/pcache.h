@@ -3,53 +3,45 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define TABLE_INIT_BCKT 256
+#define INIT_BUCKETS 50
+#define MAX_KEYS 200
 
-typedef struct pg_hdr{
-    uint32_t page_num;
+typedef struct page_holder {
     void* page;
-    bool dirty;
+    bool dirty; // Records whether the page has been changed or not
+    uint32_t ref_count; // How many instances are currently using this page, DO NOT evict if ref_count is not 0
+    int32_t page_num; // Used for hashing
 
-    struct pg_hdr* hash_chain_next;
-    struct pg_hdr* lru_next;
-    struct pg_hdr* lru_prev;
-} pg_hdr;
+    struct page_holder* hash_tbl_chain_next;
+    struct page_holder* lru_list_next;
+    struct page_holder* lru_list_prev;
+} page_holder;
 
-typedef struct pg_cache{
-    pg_hdr** table;
-    uint32_t num_keys;
+typedef struct page_cache {
+    page_holder* hash_table[INIT_BUCKETS];
+    uint32_t keys, used_buckets;
 
-    pg_hdr* head;
-    pg_hdr* tail;
-    uint32_t num_buckets;
-} pg_cache;
+    page_holder* head;
+    page_holder* tail;
+} page_cache;
 
-typedef enum{
+typedef enum fetch_res {
     FETCH_OK,
-    FETCH_BAD
-} fetch_status;
-
-typedef struct{
-    void* page;
-    fetch_status status;
+    FETCH_NOT_FOUND
 } fetch_res;
 
-uint32_t hash(uint32_t key, uint32_t factor);
+typedef struct page_fetch_result {
+    fetch_res res;
+    int page_num;
+    void* page;
+} page_fetch_result;
 
-// Cache specific functions
-pg_cache* init_cache();
-void init_new_hdr();
-void cache_page(pg_cache* cache, uint32_t page_num, void* page);
-fetch_res* fetch_page(pg_cache* cache, uint32_t page_num);
+// Cache creation and destruction
+page_cache* cache_init();
+void page_holder_init(page_holder* holder, int32_t page_num, void* page);
+void clear_cache(page_cache* cache);
 
-// Hash Table functions
-void evict_from_table(pg_cache* cache, pg_hdr* node);
-void mark_dirty(pg_cache* cache, int page_num, bool dirty);
-
-// LRU list functions
-void emplace_end(pg_cache* cache, pg_hdr* node);
-
-// Memory handlers
-void clear_cache(pg_cache* cache);
+// Inserting and deleting from cache
+void cache_page(page_cache* cache, uint32_t page_num, void* page);
 
 #endif

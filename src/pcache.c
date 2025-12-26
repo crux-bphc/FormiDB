@@ -3,167 +3,59 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <memory.h>
-#define MAX_KEYS_ALLOWED 200
-#define BUCKETS_INIT 50
 
-uint32_t hash(uint32_t key, uint32_t factor){
-    return key % factor;
+uint32_t hash(uint32_t page_num, uint32_t factor) {
+    return page_num % factor;
 }
 
-// Cache specific
+page_cache* cache_init() {
+    page_cache* cache = (page_cache*)malloc(sizeof(page_cache));
+    for (int i = 0; i < INIT_BUCKETS; i++)
+        cache->hash_table[i] = NULL;
+    cache->keys = 0, cache->used_buckets = 0;
 
-pg_cache* init_cache(){
-    pg_cache* cache = (pg_cache*)calloc(sizeof(pg_cache), NULL);
+    // End buffers on the list
+    cache->head = (page_holder*)malloc(sizeof(page_holder));
+    if (cache->head == NULL)
+        return NULL;
+    page_holder_init(cache->head, -1, NULL);
 
-    cache->table = (pg_hdr**)calloc(sizeof(pg_hdr*) * BUCKETS_INIT, NULL);
-    cache->num_keys = 0;
-    cache->head = NULL;
-    cache->tail = NULL;
-    cache->num_buckets = BUCKETS_INIT;
+    cache->tail = (page_holder*)malloc(sizeof(page_holder));
+    if (cache->tail == NULL)
+        return NULL;
+    page_holder_init(cache->tail, -1, NULL);
+
+    cache->head->lru_list_next = cache->tail;
+    cache->tail->lru_list_prev = cache->head;
 
     return cache;
 }
 
-void init_new_hdr(pg_hdr* new_hdr, uint32_t page_num, void* page){
-    memset(new_hdr, NULL, sizeof(pg_hdr));
-    new_hdr->dirty = 0;
-    new_hdr->hash_chain_next = NULL;
-    new_hdr->lru_next = NULL;
-    new_hdr->lru_prev = NULL;
-    new_hdr->page = page;
-    new_hdr->page_num = page_num;
+void page_holder_init(page_holder* holder, int32_t page_num, void* page) {
+    memset(holder, 0, sizeof(page_holder));
+    if (holder == NULL)
+        return;
+
+    holder->page = page;
+    holder->dirty = false;
+    holder->page_num = page_num;
+    holder->ref_count = 0;
+
+    holder->hash_tbl_chain_next = NULL, holder->lru_list_next = NULL, holder->lru_list_prev = NULL;
 }
 
-
-// Hash table functions
-void cache_page(pg_cache* cache, uint32_t page_num, void* page){
-    int bck_idx = hash(page_num, cache->num_buckets);
-
-    pg_hdr* hash_chain_trv = cache->table[bck_idx];
-    pg_hdr* new_hdr = NULL;
-
-    if (!hash_chain_trv){
-        hash_chain_trv = (pg_hdr*)malloc(sizeof(pg_hdr));
-        init_new_hdr(hash_chain_trv, page_num, page);
-        cache->table[bck_idx] = hash_chain_trv;
-        new_hdr = hash_chain_trv;
+void clear_cache(page_cache* cache) {
+    // Assumes that all the dirty pages have been written back to the disk
+    page_holder* trav = cache->head;
+    while (trav != NULL) {
+        page_holder* next = trav->lru_list_next;
+        free(trav);
+        trav = next;
     }
-    else{
-        while (hash_chain_trv->hash_chain_next != NULL){
-            hash_chain_trv = hash_chain_trv->hash_chain_next;
-        }
-        new_hdr = (pg_hdr*)malloc(sizeof(pg_hdr));
-        init_new_hdr(new_hdr, page_num, page);
-        hash_chain_trv->hash_chain_next = new_hdr;
-    }
-
-    emplace_end(cache, new_hdr);
-    cache->num_keys += 1;
+    free(cache);
 }
 
-void evict_from_table(pg_cache* cache, pg_hdr* node){
-    int bck_idx = hash(node->page_num, cache->num_buckets);
+// Inserting and deleting from cache
+void cache_page(page_cache* cache, uint32_t page_num, void* page) {
 
-    pg_hdr* hash_chain_trv = cache->table[bck_idx];
-    pg_hdr* prev = NULL;
-
-    pg_hdr* destroy = NULL;
-
-    while (hash_chain_trv != NULL){
-        bool found = false;
-        if (hash_chain_trv->page_num == node->page_num){
-            if (!prev){
-                cache->table[bck_idx] = cache->table[bck_idx]->hash_chain_next;
-            }
-            else{
-                prev->hash_chain_next = hash_chain_trv->hash_chain_next;
-            }
-            destroy = hash_chain_trv;
-            found = true;
-        }
-
-        if (found)
-            break;
-
-        prev = hash_chain_trv;
-        hash_chain_trv = hash_chain_trv->hash_chain_next;
-    }
-
-    if (destroy){
-        if (destroy->page)
-            free(destroy->page);
-        free(destroy);
-    }
-    cache->num_keys -= 1;
 }
-
-fetch_res* fetch_page(pg_cache* cache, uint32_t page_num){
-    int bck_idx = hash(page_num, cache->num_buckets);
-
-    fetch_res* res = (fetch_res*)malloc(sizeof(fetch_res));
-    pg_hdr* hash_chain_trv = cache->table[bck_idx];
-
-    while (hash_chain_trv != NULL){
-        if (hash_chain_trv->page_num == page_num){
-            res->page = hash_chain_trv->page;
-            res->status = FETCH_OK;
-
-            if (hash_chain_trv != cache->tail){
-                pg_hdr* prev = hash_chain_trv->lru_prev;
-                pg_hdr* next = hash_chain_trv->lru_next;
-
-                if (!prev)
-                    cache->head = cache->head->lru_next;
-                else    
-                    prev->lru_next = next;
-
-                cache->num_keys -= 1;
-                emplace_end(cache, hash_chain_trv);
-                cache->num_keys += 1;
-            }
-
-            return res;
-        }
-        hash_chain_trv = hash_chain_trv->hash_chain_next;
-    }
-
-    res->page = NULL;
-    res->status = FETCH_BAD;
-    return res;
-}
-
-// LRU list functions
-
-void emplace_end(pg_cache* cache, pg_hdr* node){
-    if (cache->num_keys == MAX_KEYS_ALLOWED){
-        pg_hdr* destroy = cache->head;
-        cache->head = cache->head->lru_next;
-        cache->head->lru_prev = NULL;
-
-        evict_from_table(cache, destroy);
-    }
-
-    if (cache->head == NULL)
-        cache->head = node;
-    
-    if (cache->tail == NULL)
-        cache->tail = node;
-
-    if (cache->num_keys > 0){
-        node->lru_prev = cache->tail;
-        cache->tail->lru_next = node;
-        cache->tail = node;
-    }
-}
-
-// Memory handlers
-void clear_cache(pg_cache* cache){
-    pg_hdr* lru_trv = cache->head;
-    while (lru_trv != NULL){
-        pg_hdr* next = lru_trv->lru_next;
-        evict_from_table(cache, lru_trv);
-
-        lru_trv = next;
-    }
-    free(cache->table);
-}   
