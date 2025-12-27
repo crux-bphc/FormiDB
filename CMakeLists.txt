@@ -16,4 +16,10 @@ add_executable(DBClone
         include/pcache.h
 )
 
+add_executable(htt_t
+        include/pcache.h
+        src/pcache.c
+        tests/htbl_test.c
+)
+
 target_link_libraries(DBClone PRIVATE m)

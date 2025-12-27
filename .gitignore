@@ -1,6 +1,6 @@
-migr/btree/build
+legacy/btree/build
 tests/build
 src/build
-migr/old/build
+legacy/old/build
 cmake-build-debug
 .idea

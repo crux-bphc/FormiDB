@@ -129,6 +129,19 @@ DBClone/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/DBClone.dir/build.make CMakeFiles/DBClone.dir/build
 .PHONY : DBClone/fast
 
+#=============================================================================
+# Target rules for targets named htt_t
+
+# Build rule for target.
+htt_t: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 htt_t
+.PHONY : htt_t
+
+# fast build rule for target.
+htt_t/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/htt_t.dir/build.make CMakeFiles/htt_t.dir/build
+.PHONY : htt_t/fast
+
 src/database.o: src/database.c.o
 .PHONY : src/database.o
 
@@ -201,6 +214,30 @@ src/pcache.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/DBClone.dir/build.make CMakeFiles/DBClone.dir/src/pcache.c.s
 .PHONY : src/pcache.c.s
 
+tests/htbl_test.o: tests/htbl_test.c.o
+.PHONY : tests/htbl_test.o
+
+# target to build an object file
+tests/htbl_test.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/htt_t.dir/build.make CMakeFiles/htt_t.dir/tests/htbl_test.c.o
+.PHONY : tests/htbl_test.c.o
+
+tests/htbl_test.i: tests/htbl_test.c.i
+.PHONY : tests/htbl_test.i
+
+# target to preprocess a source file
+tests/htbl_test.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/htt_t.dir/build.make CMakeFiles/htt_t.dir/tests/htbl_test.c.i
+.PHONY : tests/htbl_test.c.i
+
+tests/htbl_test.s: tests/htbl_test.c.s
+.PHONY : tests/htbl_test.s
+
+# target to generate assembly for a file
+tests/htbl_test.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/htt_t.dir/build.make CMakeFiles/htt_t.dir/tests/htbl_test.c.s
+.PHONY : tests/htbl_test.c.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -210,6 +247,7 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... DBClone"
+	@echo "... htt_t"
 	@echo "... src/database.o"
 	@echo "... src/database.i"
 	@echo "... src/database.s"
@@ -219,6 +257,9 @@ help:
 	@echo "... src/pcache.o"
 	@echo "... src/pcache.i"
 	@echo "... src/pcache.s"
+	@echo "... tests/htbl_test.o"
+	@echo "... tests/htbl_test.i"
+	@echo "... tests/htbl_test.s"
 .PHONY : help
 
 

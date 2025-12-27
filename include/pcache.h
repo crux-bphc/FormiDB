@@ -9,7 +9,6 @@
 typedef struct page_holder {
     void* page;
     bool dirty; // Records whether the page has been changed or not
-    uint32_t ref_count; // How many instances are currently using this page, DO NOT evict if ref_count is not 0
     int32_t page_num; // Used for hashing
 
     struct page_holder* hash_tbl_chain_next;
@@ -21,8 +20,8 @@ typedef struct page_cache {
     page_holder* hash_table[INIT_BUCKETS];
     uint32_t keys, used_buckets;
 
-    page_holder* head;
-    page_holder* tail;
+    page_holder* head; // Most recently used
+    page_holder* tail; // Least recently used
 } page_cache;
 
 typedef enum fetch_res {
@@ -32,16 +31,20 @@ typedef enum fetch_res {
 
 typedef struct page_fetch_result {
     fetch_res res;
-    int page_num;
-    void* page;
+    page_holder* pg_ret;
 } page_fetch_result;
 
 // Cache creation and destruction
 page_cache* cache_init();
 void page_holder_init(page_holder* holder, int32_t page_num, void* page);
-void clear_cache(page_cache* cache);
+void close_cache(page_cache* cache);
 
 // Inserting and deleting from cache
 void cache_page(page_cache* cache, uint32_t page_num, void* page);
+page_fetch_result* fetch_page(page_cache* cache, uint32_t page_num);
+
+// List ops
+void emplace_front(page_cache* cache, page_holder* payload);
+page_holder* evict_tail(page_cache* cache);
 
 #endif
