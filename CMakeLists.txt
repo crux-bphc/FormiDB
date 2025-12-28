@@ -5,7 +5,7 @@ set(CMAKE_C_STANDARD 11)
 
 include_directories(include)
 
-add_executable(DBClone
+add_executable(formidb
         include/database.h
         include/objects.h
         include/pcache.h
