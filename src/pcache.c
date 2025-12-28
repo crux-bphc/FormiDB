@@ -43,6 +43,7 @@ void page_holder_init(page_holder* holder, int32_t page_num, void* page) {
     holder->page = page;
     holder->dirty = false;
     holder->page_num = page_num;
+    holder->ref_count = 0;
 
     holder->hash_tbl_chain_next = NULL, holder->lru_list_next = NULL, holder->lru_list_prev = NULL;
 }
@@ -59,9 +60,14 @@ void close_cache(page_cache* cache) {
 }
 
 // Inserting and deleting from cache
-void cache_page(page_cache* cache, uint32_t page_num, void* page) {
+bool cache_page(page_cache* cache, uint32_t page_num, void* page) {
     if (cache->keys == MAX_KEYS) {
+        if (cache->tail->lru_list_prev->ref_count > 0)
+            return false;
+
         page_holder* evicted = evict_tail(cache);
+        if (evicted == NULL)
+            return false;
         free(evicted);
     }
 
@@ -71,18 +77,18 @@ void cache_page(page_cache* cache, uint32_t page_num, void* page) {
     if (hash_chain_head == NULL) {
         cache->hash_table[bucket] = hash_chain_head = (page_holder*)malloc(sizeof(page_holder));
         if (hash_chain_head == NULL)
-            return;
+            return false;
         cache->used_buckets++;
         page_holder_init(hash_chain_head, page_num, page);
         emplace_front(cache, hash_chain_head);
-        return;
+        return true;
     }
 
     // Move up the chain and insert at the end
     while (hash_chain_head != NULL) {
         if (hash_chain_head->page_num == page_num) {
             hash_chain_head->page = page; // Already exists, update and return
-            return;
+            return true;
         }
         if (hash_chain_head->hash_tbl_chain_next == NULL)
             break;
@@ -90,17 +96,64 @@ void cache_page(page_cache* cache, uint32_t page_num, void* page) {
     }
     hash_chain_head->hash_tbl_chain_next = (page_holder*)malloc(sizeof(page_holder)); // holds the newest entry
     if (hash_chain_head->hash_tbl_chain_next == NULL)
-        return;
+        return false;
     page_holder_init(hash_chain_head->hash_tbl_chain_next, page_num, page);
     emplace_front(cache, hash_chain_head->hash_tbl_chain_next);
+    return true;
+}
+
+page_fetch_result* fetch_page(page_cache* cache, uint32_t page_num) {
+    uint32_t bucket = hash(page_num, INIT_BUCKETS);
+
+    page_fetch_result* res = (page_fetch_result*)malloc(sizeof(page_fetch_result));
+    if (res == NULL)
+        return NULL;
+
+    res->pg_ret = NULL;
+    res->res = FETCH_NOT_FOUND;
+
+    page_holder* trv = cache->hash_table[bucket];
+    while (trv != NULL) {
+        if (trv->page_num == page_num) {
+            res->pg_ret = trv;
+            res->res = FETCH_OK;
+
+            trv->ref_count += 1;
+
+            // Move up the list
+            move_to_head(cache, trv);
+
+            return res;
+        }
+    }
+    return res;
+}
+
+void revoke_fetch(page_fetch_result* res) {
+    if (res == NULL)
+        return;
+    if (res->pg_ret != NULL)
+        res->pg_ret->ref_count -= 1;
+    free(res);
 }
 
 // List ops
 void emplace_front(page_cache* cache, page_holder* payload) {
     payload->lru_list_next = cache->head->lru_list_next;
+    payload->lru_list_prev = cache->head;
     cache->head->lru_list_next->lru_list_prev = payload;
     cache->head->lru_list_next = payload;
     cache->keys++;
+}
+
+void move_to_head(page_cache* cache, page_holder* to_mv) {
+    to_mv->lru_list_prev->lru_list_next = to_mv->lru_list_next;
+    to_mv->lru_list_next->lru_list_prev = to_mv->lru_list_prev;
+
+    to_mv->lru_list_prev = cache->head;
+    to_mv->lru_list_next = cache->head->lru_list_next;
+    cache->head->lru_list_next->lru_list_prev = to_mv;
+    cache->head->lru_list_next = to_mv;
 }
 
 page_holder* evict_tail(page_cache* cache) {
@@ -115,18 +168,17 @@ page_holder* evict_tail(page_cache* cache) {
 
     // Adjust hash-chain
     page_holder* hash_chain_trv = cache->hash_table[hash(evicted->page_num, INIT_BUCKETS)];
-
-    if (hash_chain_trv == NULL) // cache corruption
-        return NULL;
-
-    while (hash_chain_trv->hash_tbl_chain_next != evicted) {
-        hash_chain_trv = hash_chain_trv->hash_tbl_chain_next;
+    if (hash_chain_trv == evicted)
+        cache->hash_table[hash(evicted->page_num, INIT_BUCKETS)] = hash_chain_trv->hash_tbl_chain_next;
+    else {
+        while (hash_chain_trv != NULL && hash_chain_trv->hash_tbl_chain_next != evicted)
+            hash_chain_trv = hash_chain_trv->hash_tbl_chain_next;
+        if (hash_chain_trv == NULL)
+            return NULL;
+        hash_chain_trv->hash_tbl_chain_next = evicted->hash_tbl_chain_next;
     }
-    hash_chain_trv->hash_tbl_chain_next = evicted->hash_tbl_chain_next;
 
     cache->keys--;
-
     return evicted;
 }
-
 
