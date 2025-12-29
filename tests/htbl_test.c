@@ -8,8 +8,10 @@
 
 int main() {
     page_cache* cache = cache_init();
-    for (int i = 0; i < 20; i++)
+    for (int i = 0; i < 200; i++)
         cache_page(cache, i, &i);
+
+    cache_page(cache, 200, NULL);
 
     page_fetch_result* res = fetch_page(cache, 16);
     revoke_fetch(res);

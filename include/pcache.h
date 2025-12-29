@@ -3,8 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define INIT_BUCKETS 10
-#define MAX_KEYS 5
+#define INIT_BUCKETS 50
+#define MAX_KEYS 200
 
 typedef struct page_holder {
     void* page;
