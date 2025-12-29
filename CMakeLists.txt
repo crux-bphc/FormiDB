@@ -22,4 +22,4 @@ add_executable(htt_t
         tests/htbl_test.c
 )
 
-target_link_libraries(DBClone PRIVATE m)
+target_link_libraries(formidb PRIVATE m)
