@@ -74,6 +74,9 @@ bool cache_page(page_cache* cache, uint32_t page_num, void* page) {
         page_holder* evicted = evict_tail(cache);
         if (evicted == NULL)
             return false;
+
+        if (evicted->page)
+            free(evicted->page);
         free(evicted);
     }
 
@@ -131,6 +134,7 @@ page_fetch_result* fetch_page(page_cache* cache, uint32_t page_num) {
 
             return res;
         }
+        trv = trv->hash_tbl_chain_next;
     }
     return res;
 }
