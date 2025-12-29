@@ -52,6 +52,9 @@ void close_cache(page_cache* cache) {
     // Assumes that all the dirty pages have been written back to the disk
     page_holder* trav = cache->head;
     while (trav != NULL) {
+        if (trav->page)
+            free(trav->page);
+
         page_holder* next = trav->lru_list_next;
         free(trav);
         trav = next;
@@ -63,6 +66,9 @@ void close_cache(page_cache* cache) {
 bool cache_page(page_cache* cache, uint32_t page_num, void* page) {
     if (cache->keys == MAX_KEYS) {
         if (cache->tail->lru_list_prev->ref_count > 0)
+            return false;
+
+        if (cache->tail->lru_list_prev->dirty == 1) // expects dirty pages to be handled before evicting
             return false;
 
         page_holder* evicted = evict_tail(cache);
