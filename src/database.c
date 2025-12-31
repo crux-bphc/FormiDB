@@ -85,24 +85,33 @@ Pager* pager_open(const char* fname){
 
     off_t file_length = lseek(fd, 0, SEEK_END);
     Pager* pager = (Pager*)malloc(sizeof(Pager));
+
+    if (pager == NULL)
+        return NULL;
+
     pager->file_descriptor = fd;
     pager->file_length = file_length;
     pager->num_pages = file_length / PAGE_SIZE;
-    
+    pager->cache = cache_init();
+
+    if (pager->cache == NULL)
+        return NULL;
+
+    // old_to_rmv
     for (int i = 0; i < TABLE_MAX_PAGES; i++)
         pager->pages[i] = NULL;
 
     return pager;
 }
 
-bool pager_flush(Pager* pager, int page_num){
-    if (pager->pages[page_num]){
+bool pager_flush_page(Pager* pager, void* page, int page_num){
+    if (page){
         off_t advance = lseek(pager->file_descriptor, page_num*PAGE_SIZE, SEEK_SET);
         if (advance == -1)
             return false;
 
-        ssize_t bytes_written = write(pager->file_descriptor, pager->pages[page_num], PAGE_SIZE);
-        if (bytes_written == -1)    
+        ssize_t bytes_written = write(pager->file_descriptor, page, PAGE_SIZE);
+        if (bytes_written == -1)
             return false;
 
         return true;
@@ -110,20 +119,53 @@ bool pager_flush(Pager* pager, int page_num){
     return false;
 }
 
-void* get_page(Pager* pager, int page_num){
-    if (pager->pages[page_num] == NULL){
-        pager->pages[page_num] = malloc(PAGE_SIZE);
-        memset(pager->pages[page_num], 0, PAGE_SIZE);
-        
+// Guarantees that a page is returned, if not exits with EXIT_FAILURE (for now)
+page_fetch_result* get_page(Pager* pager, int page_num){
+    // Main cache logic goes here
+    // if (pager->pages[page_num] == NULL){
+    //     pager->pages[page_num] = malloc(PAGE_SIZE);
+    //     memset(pager->pages[page_num], 0, PAGE_SIZE);
+    //
+    //     off_t advance = lseek(pager->file_descriptor, page_num*PAGE_SIZE, SEEK_SET);
+    //     if (advance == -1)
+    //         exit(EXIT_FAILURE);
+    //
+    //     size_t bytes_read = read(pager->file_descriptor, pager->pages[page_num], PAGE_SIZE);
+    //     if (bytes_read == -1)
+    //         exit(EXIT_FAILURE);
+    // }
+    // return pager->pages[page_num];
+    page_fetch_result* res = fetch_page(pager->cache, page_num); // Attempt fetch
+    if (res != NULL) {
+        if (res->res == FETCH_OK && res->pg_ret != NULL && res->pg_ret->page != NULL)
+            return res; // Cache already contains result, return it
+
+        revoke_fetch(res); // No longer required, revoke ownership
+        if (pager->cache->keys == MAX_KEYS && pager->cache->tail->lru_list_prev->dirty) {
+            // If the next fetch will evict the tail of the cache, check if the page which that node contains is dirty and flush it
+            pager_flush_page(pager, pager->cache->tail->lru_list_prev->page, pager->cache->tail->lru_list_prev->page_num); // This page will be freed automatically
+        }
+
+
+        // Read the page block from file
+        void* reqd_page = malloc(PAGE_SIZE);
+        if (reqd_page == NULL)
+            exit(EXIT_FAILURE);
+        memset(reqd_page, 0, PAGE_SIZE);
+
         off_t advance = lseek(pager->file_descriptor, page_num*PAGE_SIZE, SEEK_SET);
         if (advance == -1)
             exit(EXIT_FAILURE);
-        
-        size_t bytes_read = read(pager->file_descriptor, pager->pages[page_num], PAGE_SIZE);
+
+        ssize_t bytes_read = read(pager->file_descriptor, reqd_page, PAGE_SIZE);
         if (bytes_read == -1)
             exit(EXIT_FAILURE);
+
+        // Cache result, then fetch and return it
+        cache_page(pager->cache, page_num, reqd_page);
+        return fetch_page(pager->cache, page_num);
     }
-    return pager->pages[page_num];
+    exit(EXIT_FAILURE);
 }
 
 // Database connections
@@ -154,12 +196,21 @@ Cursor* start_connection(const char* fname, int column_count, DataType* column_d
 bool close_connection(Cursor* cursor){
     Table* table = cursor->table;
     Pager* pager = table->pager;
+    page_cache* cache = pager->cache;
 
-    for (int i = 0; i < pager->num_pages; i++){
-        if (pager_flush(pager, i))
-            free(pager->pages[i]);
-        pager->pages[i] = NULL;
+    // for (int i = 0; i < pager->num_pages; i++){
+    //     if (pager_flush_page(pager, pager->pages[i], i))
+    //         free(pager->pages[i]);
+    //     pager->pages[i] = NULL;
+    // }
+
+    page_holder* trav = cache->head;
+    while (trav != NULL) {
+        pager_flush_page(pager, trav->page, trav->page_num);
+        trav = trav->lru_list_next;
     }
+
+    close_cache(cache);
 
     int cls = close(pager->file_descriptor);
     if (cls == -1)
@@ -302,7 +353,9 @@ int find_free_page(Cursor* cursor){
 }
 
 int bin_search(Cursor* cursor, int key, FindType find_type){
-    void* curr_page = get_page(cursor->table->pager, cursor->page_num);
+    page_fetch_result* pg_ftch_res = get_page(cursor->table->pager, cursor->page_num);
+    void* curr_page = pg_ftch_res->pg_ret->page;
+
     size_t row_size = cursor->table->row_size;
 
     int left = 0, right = num_cells(curr_page) - 1;
@@ -319,12 +372,17 @@ int bin_search(Cursor* cursor, int key, FindType find_type){
             nearest_smallest_pos = mid;
         }
         else{
-            if (find_type != FIND_EXACT)
+            if (find_type != FIND_EXACT) {
+                revoke_fetch(pg_ftch_res);
                 return -1;
-            
+            }
+
+            revoke_fetch(pg_ftch_res);
             return mid;
         }
     }
+
+    revoke_fetch(pg_ftch_res);
 
     if (find_type == FIND_NEAREST_LARGEST)
         return nearest_largest_pos;
@@ -342,26 +400,42 @@ int init_root(Cursor* cursor, bool is_leaf){
     int old_page_now_at = 0;
     if (pager->num_pages != 0){
         old_page_now_at = free_page;
-        void* new_alloc_loc = get_page(pager, free_page);
+        page_fetch_result* new_alloc_loc_ftch = get_page(pager, free_page); // Obtain ownership of new root page result
+        void* new_alloc_loc = new_alloc_loc_ftch->pg_ret->page;
 
-        memcpy(new_alloc_loc, get_page(pager, 0), PAGE_SIZE);
+        page_fetch_result* old_root_page = get_page(pager, 0); // Obtain ownership of result
+        memcpy(new_alloc_loc, old_root_page->pg_ret->page, PAGE_SIZE);
+        revoke_fetch(old_root_page); // Revoke ownership of result
 
         if (node_type(new_alloc_loc) == NODE_INTERNAL){
-            void* left_most_page = get_page(pager, *(int*)left_most_child(new_alloc_loc));
+            page_fetch_result* left_most_page_res = get_page(pager, *(int*)left_most_child(new_alloc_loc)); // Obtain ownership of left most page result
+            void* left_most_page = left_most_page_res->pg_ret->page;
+
             set_parent_pointer(left_most_page, old_page_now_at);
+            left_most_page_res->pg_ret->dirty = 1; // Page has been modified
+            revoke_fetch(left_most_page_res); // Revoke ownership of left most page result
+
             for (int i = 0; i < num_keys(new_alloc_loc); i++){
-                void* curr_page = get_page(pager, *(int*)get_pointer(new_alloc_loc, i, cursor->table->row_size));
+                page_fetch_result* curr_page_res = get_page(pager, *(int*)get_pointer(new_alloc_loc, i, cursor->table->row_size)); // Obtain ownership
+                void* curr_page = curr_page_res->pg_ret->page;
+
                 set_parent_pointer(curr_page, old_page_now_at);
+                curr_page_res->pg_ret->dirty = 1; // Page modified
+                revoke_fetch(curr_page_res); // Revoke ownership
             }
         }
 
         set_is_root(new_alloc_loc, 0);
         set_parent_pointer(new_alloc_loc, 0);
+
+        new_alloc_loc_ftch->pg_ret->dirty = 1;
+        revoke_fetch(new_alloc_loc_ftch);
     }
 
     pager->num_pages += 1;
-    
-    void* new_root = get_page(pager, 0);
+
+    page_fetch_result* new_root_ftch = get_page(pager, 0); // Obtain ownership
+    void* new_root = new_root_ftch->pg_ret->page;
     
     set_is_root(new_root, 1);
     set_node_type(new_root, (is_leaf) ? NODE_LEAF : NODE_INTERNAL);
@@ -377,26 +451,33 @@ int init_root(Cursor* cursor, bool is_leaf){
     cursor->page_num = 0;
     cursor->cell_num = 0;
 
+    new_root_ftch->pg_ret->dirty = 1;
+    revoke_fetch(new_root_ftch); // Revoke ownership
     return old_page_now_at;
 }
 
 // Returns page as well as the index at which the new pair is to be inserted
 void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num, bool search_exact){
-    void* curr_page = get_page(cursor->table->pager, curr_page_num);
+    page_fetch_result* curr_page_res = get_page(cursor->table->pager, curr_page_num); // Obtain ownership
+    void* curr_page = curr_page_res->pg_ret->page;
     
     size_t row_size = cursor->table->row_size;
     cursor->page_num = curr_page_num;
 
     if (node_type(curr_page) == NODE_INTERNAL){
         int left = 0, right = num_cells(curr_page) - 1;
-        if (key < *(int*)get_key(curr_page, 0, row_size))
+        if (key < *(int*)get_key(curr_page, 0, row_size)) {
+            revoke_fetch(curr_page_res);
             return find_leaf_to_insert(cursor, key, *(int*)left_most_child(curr_page), search_exact);
+        }
 
         int target = bin_search(cursor, key, FIND_EXACT);
 
+        revoke_fetch(curr_page_res);
         return find_leaf_to_insert(cursor, key, *(int*)get_pointer(curr_page, target, row_size), search_exact);
     }
 
+    revoke_fetch(curr_page_res); // Revoke ownership
     return curr_page;
 }
 
@@ -426,7 +507,6 @@ int insert_into_leaf(Cursor* cursor, void* page, int key, Row* value){
 void insert_into_internal(Cursor* cursor, void* page, int key, int assoc_child_page){
     if (num_cells(page) == max_nodes(NODE_INTERNAL, cursor->table->row_size)){
         split_insert_into_internal(cursor, page, key, assoc_child_page);
-        return;
     }
     else{
         int idx_to_insert = 0;
@@ -457,13 +537,16 @@ int split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* va
     int parent_pointer_ = parent_pointer(page_to_split);
 
     int new_page_num = find_free_page(cursor);
-    void* new_page = get_page(pager, new_page_num);
+    page_fetch_result* new_page_res = get_page(pager, new_page_num); // Obtain ownership of new_page result
+    void* new_page = new_page_res->pg_ret->page;
     pager->num_pages += 1;
     
     // Initialize new leaf node
     set_is_root(new_page, 0);
     set_node_type(new_page, NODE_LEAF);
     set_num_cells(new_page, leaf_order - split_point);
+
+    new_page_res->pg_ret->dirty = 1; // Mark page as dirty
 
     for (int i = split_point - 1; i < leaf_order - 1; i++){
         memcpy(get_key(new_page, i - split_point + 1, cursor->table->row_size), 
@@ -492,18 +575,27 @@ int split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* va
 
     if (parent_pointer(page_to_split) == -1){
         int old_page_num = init_root(cursor, false);
-        page_to_split = get_page(pager, old_page_num);
+        page_fetch_result* page_to_split_res = get_page(pager, old_page_num); // Obtain ownership
+        page_to_split = page_to_split_res->pg_ret->page;
         set_is_root(page_to_split, 0);
         set_node_type(page_to_split, NODE_LEAF);
         set_parent_pointer(page_to_split, 0);
-
+        revoke_fetch(page_to_split_res); // Revoke ownership
         parent_pointer_ = 0;
     }
 
     set_parent_pointer(new_page, parent_pointer_);
+
+    revoke_fetch(new_page_res); // Revoke ownership of new page
+
     cursor->page_num = parent_pointer_;
-    void* parent_page = get_page(pager, parent_pointer_);
-    insert_into_internal(cursor, parent_page, *(int*)get_key(new_page, 0, cursor->table->row_size), new_page_num);
+    page_fetch_result* parent_page_res = get_page(pager, parent_pointer_); // Obtain ownership of parent page result
+    parent_page_res->pg_ret->dirty = 1; // Will be modified in the insert into internal method
+
+    insert_into_internal(cursor, parent_page_res->pg_ret->page, *(int*)get_key(new_page, 0, cursor->table->row_size), new_page_num);
+
+    revoke_fetch(parent_page_res); // Revoke ownership of parent page
+
     return 0;
 }
 
@@ -514,16 +606,22 @@ void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, in
     int new_node_copy_start = ceil((double)internal_order/2);
 
     int new_page_num = find_free_page(cursor);
-    void* new_page = get_page(pager, new_page_num);
+    page_fetch_result* new_page_res = get_page(pager, new_page_num); // Obt own
+    void* new_page = new_page_res->pg_ret->page;
     pager->num_pages += 1;
     
     set_is_root(new_page, 0);
     set_node_type(new_page, NODE_INTERNAL);
     set_num_keys(new_page, internal_order - new_node_copy_start);
 
+    new_page_res->pg_ret->dirty = 1;
+
+    page_fetch_result* page_to_split_res = NULL;
     if (parent_pointer(page_to_split) == -1){
         int old_page_num = init_root(cursor, false);
-        page_to_split = get_page(pager, old_page_num);
+        page_to_split_res = get_page(pager, old_page_num); // Obt own
+        page_to_split_res->pg_ret->dirty = 1;
+        page_to_split = page_to_split_res->pg_ret->page;
         set_node_type(page_to_split, NODE_INTERNAL);
     }
 
@@ -547,8 +645,10 @@ void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, in
     for (int i = new_node_copy_start; i < internal_order; i++){
         set_key(new_page, i - new_node_copy_start, cursor->table->row_size, temporary[i].key);
         set_pointer(new_page, i - new_node_copy_start, cursor->table->row_size, temporary[i].assoc_child);
-        void* child_page = get_page(pager, temporary[i].assoc_child);
+        page_fetch_result* child_page_res = get_page(pager, temporary[i].assoc_child); // Obt own
+        void* child_page = child_page_res->pg_ret->page;
         set_parent_pointer(child_page, new_page_num);
+        revoke_fetch(child_page_res); // Revoke own
     }
 
     for (int i = 0; i < new_node_copy_start - 1; i++){
@@ -559,8 +659,17 @@ void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, in
     set_num_keys(page_to_split, new_node_copy_start - 1);
     set_parent_pointer(new_page, parent_pointer(page_to_split));
     set_num_keys(page_to_split, new_node_copy_start - 1);
-    void* parent_page = get_page(pager, parent_pointer(page_to_split));
+
+    revoke_fetch(new_page_res); // Revoke own
+
+    page_fetch_result* parent_page_res = get_page(pager, parent_pointer(page_to_split)); // Obt own
+
+    revoke_fetch(page_to_split_res); // Revoke own
+
+    void* parent_page = parent_page_res->pg_ret->page;
     insert_into_internal(cursor, parent_page, temporary[new_node_copy_start - 1].key, new_page_num);
+
+    revoke_fetch(parent_page_res); // Revoke own
 }
 
 int insert(Cursor* cursor, int key, Row* value){

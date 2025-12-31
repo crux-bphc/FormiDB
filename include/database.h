@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdint.h>
+#include "pcache.h"
 
 // Memory navigation
 void* memory_step(void* src, size_t offset);
@@ -16,7 +18,11 @@ void* memory_step(void* src, size_t offset);
 typedef struct{
     int file_descriptor;
     size_t file_length;
-    int num_pages;
+    uint32_t num_pages;
+
+    page_cache* cache;
+
+    // old_to_rmv
     void* pages[TABLE_MAX_PAGES];
 } Pager;
 
@@ -47,9 +53,9 @@ void deserialize_row(Row* row, int column_count, void* src);
 // File operations
 Pager* pager_open(const char* fname);
 
-bool pager_flush(Pager* pager, int page_num);
+bool pager_flush_page(Pager* pager, void* page, int page_num);
 
-void* get_page(Pager* pager, int page_num);
+page_fetch_result* get_page(Pager* pager, int page_num);
 
 // Database connection handlers
 Cursor* start_connection(const char* fname, int column_count, DataType* column_descriptor, size_t row_size); // Store column count and column descriptor metadata in a json file
