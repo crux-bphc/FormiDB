@@ -625,7 +625,6 @@ void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, in
         set_node_type(page_to_split, NODE_INTERNAL);
     }
 
-
     Pair temporary[internal_order];
 
     int i = 0;
