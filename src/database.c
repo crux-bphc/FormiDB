@@ -353,7 +353,7 @@ int find_free_page(Cursor* cursor){
 }
 
 int bin_search(Cursor* cursor, int key, FindType find_type){
-    page_fetch_result* pg_ftch_res = get_page(cursor->table->pager, cursor->page_num);
+    page_fetch_result* pg_ftch_res = get_page(cursor->table->pager, cursor->page_num); // Obtain ownership
     void* curr_page = pg_ftch_res->pg_ret->page;
 
     size_t row_size = cursor->table->row_size;
@@ -373,16 +373,16 @@ int bin_search(Cursor* cursor, int key, FindType find_type){
         }
         else{
             if (find_type != FIND_EXACT) {
-                revoke_fetch(pg_ftch_res);
+                revoke_fetch(pg_ftch_res); // Revoke
                 return -1;
             }
 
-            revoke_fetch(pg_ftch_res);
+            revoke_fetch(pg_ftch_res); // Revoke
             return mid;
         }
     }
 
-    revoke_fetch(pg_ftch_res);
+    revoke_fetch(pg_ftch_res); // Revoke
 
     if (find_type == FIND_NEAREST_LARGEST)
         return nearest_largest_pos;
@@ -457,28 +457,28 @@ int init_root(Cursor* cursor, bool is_leaf){
 }
 
 // Returns page as well as the index at which the new pair is to be inserted
-void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num, bool search_exact){
-    page_fetch_result* curr_page_res = get_page(cursor->table->pager, curr_page_num); // Obtain ownership
+page_fetch_result* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num, bool search_exact){
+    page_fetch_result* curr_page_res = get_page(cursor->table->pager, curr_page_num); // Obtain ownership of current page
     void* curr_page = curr_page_res->pg_ret->page;
     
     size_t row_size = cursor->table->row_size;
     cursor->page_num = curr_page_num;
 
     if (node_type(curr_page) == NODE_INTERNAL){
-        int left = 0, right = num_cells(curr_page) - 1;
         if (key < *(int*)get_key(curr_page, 0, row_size)) {
-            revoke_fetch(curr_page_res);
-            return find_leaf_to_insert(cursor, key, *(int*)left_most_child(curr_page), search_exact);
+            int left_most_child_ = *(int*)left_most_child(curr_page);
+            revoke_fetch(curr_page_res); // Revoke ownership
+            return find_leaf_to_insert(cursor, key, left_most_child_, search_exact);
         }
 
         int target = bin_search(cursor, key, FIND_EXACT);
+        target = *(int*)get_pointer(curr_page, target, row_size);
 
         revoke_fetch(curr_page_res);
-        return find_leaf_to_insert(cursor, key, *(int*)get_pointer(curr_page, target, row_size), search_exact);
+        return find_leaf_to_insert(cursor, key, target, search_exact);
     }
 
-    revoke_fetch(curr_page_res); // Revoke ownership
-    return curr_page;
+    return curr_page_res;
 }
 
 int insert_into_leaf(Cursor* cursor, void* page, int key, Row* value){
@@ -673,20 +673,31 @@ void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, in
 }
 
 int insert(Cursor* cursor, int key, Row* value){
-    void* ins_leaf = find_leaf_to_insert(cursor, key, 0, false);
-    return insert_into_leaf(cursor, ins_leaf, key, value);
+    page_fetch_result* ins_leaf_res = find_leaf_to_insert(cursor, key, 0, false); // Obtain ownership of leaf to insert into
+    ins_leaf_res->pg_ret->dirty = 1;
+    int successful_ins =  insert_into_leaf(cursor, ins_leaf_res->pg_ret->page, key, value);
+    revoke_fetch(ins_leaf_res);
+
+    return successful_ins;
 }
 
 Row* search(Cursor* cursor, int key){
-    void* leaf_node = find_leaf_to_insert(cursor, key, 0, true);
+    page_fetch_result* leaf_node_res = find_leaf_to_insert(cursor, key, 0, true); // Obtain ownership
+    void* leaf_node = leaf_node_res->pg_ret->page;
     int cell_num = bin_search(cursor, key, FIND_EXACT);
 
     if (*(int*)get_key(leaf_node, cell_num, cursor->table->row_size) != key)
         return NULL;
 
     Row* result = malloc(sizeof(Row));
+
+    if (result == NULL)
+        return NULL;
+
     deserialize_row(result, cursor->table->column_count, memory_step(get_key(leaf_node, cell_num, cursor->table->row_size), sizeof(int)));
+    revoke_fetch(leaf_node_res); // Revoke ownership
     return result;
+
 }
 
 // Memory cleanup handlers

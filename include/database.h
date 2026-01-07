@@ -118,7 +118,7 @@ int find_free_page(Cursor* cursor);
 
 int init_root(Cursor* cursor, bool is_leaf);
 
-void* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num, bool search_exact);
+page_fetch_result* find_leaf_to_insert(Cursor* cursor, int key, int curr_page_num, bool search_exact);
 
 int bin_search(Cursor* cursor, int key, FindType find_type);
 
