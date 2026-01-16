@@ -9,14 +9,11 @@
 #include <stdint.h>
 #include "../include/database.h"
 
-#define int32_t int
-
 // Memory navigation
 void* memory_step(void* origin, size_t offset){
     unsigned char* loc = (unsigned char*)origin + offset;
     return loc;
 }
-
 
 // Row Operations
 size_t row_size(Row* row, int column_count){
@@ -144,6 +141,7 @@ page_fetch_result* get_page(Pager* pager, int page_num){
         if (pager->cache->keys == MAX_KEYS && pager->cache->tail->lru_list_prev->dirty) {
             // If the next fetch will evict the tail of the cache, check if the page which that node contains is dirty and flush it
             pager_flush_page(pager, pager->cache->tail->lru_list_prev->page, pager->cache->tail->lru_list_prev->page_num); // This page will be freed automatically
+            pager->cache->tail->lru_list_prev->dirty = false;
         }
 
 
@@ -162,7 +160,9 @@ page_fetch_result* get_page(Pager* pager, int page_num){
             exit(EXIT_FAILURE);
 
         // Cache result, then fetch and return it
-        cache_page(pager->cache, page_num, reqd_page);
+        if (cache_page(pager->cache, page_num, reqd_page) == false) {
+
+        }
         return fetch_page(pager->cache, page_num);
     }
     exit(EXIT_FAILURE);
