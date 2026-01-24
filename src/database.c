@@ -161,7 +161,7 @@ page_fetch_result* get_page(Pager* pager, int page_num){
 
         // Cache result, then fetch and return it
         if (cache_page(pager->cache, page_num, reqd_page) == false) {
-
+            int y = 3; //debug
         }
         return fetch_page(pager->cache, page_num);
     }
@@ -491,7 +491,7 @@ int insert_into_leaf(Cursor* cursor, void* page, int key, Row* value){
         idx_to_insert = bin_search(cursor, key, FIND_NEAREST_LARGEST);
 
     if (idx_to_insert == -1){
-        fprintf(stderr, "Duplicate key");
+        //fprintf(stderr, "Duplicate key");
         return -1;
     }
 
@@ -505,7 +505,11 @@ int insert_into_leaf(Cursor* cursor, void* page, int key, Row* value){
 }
 
 void insert_into_internal(Cursor* cursor, void* page, int key, int assoc_child_page){
-    if (num_cells(page) == max_nodes(NODE_INTERNAL, cursor->table->row_size)){
+    // if (num_cells(page) == max_nodes(NODE_INTERNAL, cursor->table->row_size)){
+    //     split_insert_into_internal(cursor, page, key, assoc_child_page);
+    // }
+    //testing
+    if (num_cells(page) == 3){
         split_insert_into_internal(cursor, page, key, assoc_child_page);
     }
     else{
@@ -526,7 +530,7 @@ int split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* va
     int idx_to_insert = bin_search(cursor, key, FIND_NEAREST_LARGEST);
 
     if (idx_to_insert == -1){
-        printf("Duplicate key");
+        //printf("Duplicate key");
         return -1;
     }
 
@@ -600,7 +604,9 @@ int split_insert_into_leaf(Cursor* cursor, void* page_to_split, int key, Row* va
 }
 
 void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, int assoc_child_page){
-    int internal_order = max_nodes(NODE_INTERNAL, cursor->table->row_size) + 1;
+    printf("summon");
+    //int internal_order = max_nodes(NODE_INTERNAL, cursor->table->row_size) + 1;
+    int internal_order = 3 + 1;
     Pager* pager = cursor->table->pager;
 
     int new_node_copy_start = ceil((double)internal_order/2);
@@ -623,6 +629,8 @@ void split_insert_into_internal(Cursor* cursor, void* page_to_split, int key, in
         page_to_split_res->pg_ret->dirty = 1;
         page_to_split = page_to_split_res->pg_ret->page;
         set_node_type(page_to_split, NODE_INTERNAL);
+        set_parent_pointer(page_to_split, 0);
+        // revoke_fetch(page_to_split_res);
     }
 
     Pair temporary[internal_order];

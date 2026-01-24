@@ -62,24 +62,39 @@ int main(){
         printf("Error opening cursor");
 
     int res = 0;
+    // *(int*)new_row.columns[0].data = 5;
+    // res = insert(cursor, 5, &new_row);
+    // *(int*)new_row.columns[0].data = 12;
+    // res = insert(cursor, 12, &new_row);
+    // *(int*)new_row.columns[0].data = 1;
+    // res = insert(cursor, 1, &new_row);
+    // *(int*)new_row.columns[0].data = 2;
+    // res = insert(cursor, 2, &new_row);
+    // *(int*)new_row.columns[0].data = 18;
+    // res = insert(cursor, 18, &new_row);
+    // *(int*)new_row.columns[0].data = 21;
+    // res = insert(cursor, 21, &new_row);
+    // *(int*)new_row.columns[0].data = 30;
+    // res = insert(cursor, 30, &new_row);
+
     *(int*)new_row.columns[0].data = 5;
     res = insert(cursor, 5, &new_row);
-    *(int*)new_row.columns[0].data = 12;
-    res = insert(cursor, 12, &new_row);
     *(int*)new_row.columns[0].data = 1;
     res = insert(cursor, 1, &new_row);
-    *(int*)new_row.columns[0].data = 2;
-    res = insert(cursor, 2, &new_row);
-    *(int*)new_row.columns[0].data = 18;
-    res = insert(cursor, 18, &new_row);
-    *(int*)new_row.columns[0].data = 21;
-    res = insert(cursor, 21, &new_row);
-    *(int*)new_row.columns[0].data = 30;
-    res = insert(cursor, 30, &new_row);
-    res = insert(cursor, 2, &new_row);
+    *(int*)new_row.columns[0].data = 10;
+    res = insert(cursor, 10, &new_row);
+    *(int*)new_row.columns[0].data = 12;
+    res = insert(cursor, 12, &new_row);
+    *(int*)new_row.columns[0].data = 14;
+    res = insert(cursor, 14, &new_row);
+    *(int*)new_row.columns[0].data = 20;
+    res = insert(cursor, 20, &new_row);
+    *(int*)new_row.columns[0].data = 35;
+    res = insert(cursor, 35, &new_row);
+    *(int*)new_row.columns[0].data = 11;
+    res = insert(cursor, 11, &new_row);
 
-
-    Row* result = search(cursor, 30);
+    Row* result = search(cursor, 510);
 
     // Debug purposes
     if (result == NULL){
