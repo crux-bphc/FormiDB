@@ -66,4 +66,4 @@ valgrind --leak-check=full --track-origins=yes ./formidb
 
 ### In development
 1. Minimal SQL like interpreter to run in shell mode
-2. Thread safe pager
+2. Thread safe pager (complete)
