@@ -2,7 +2,7 @@
 
 ## About
 
-A **very** lightweight database engine implemented from scratch. (Don't expect a lot of features lol, it's just a proof of concept)
+A **very** lightweight database engine implemented from scratch. 
 
 ---
 
@@ -28,7 +28,7 @@ cmake ..
 cmake --build .
 ```
 
-After a successful build, two binaries should be generates as of now, one is the main application (formidb) and the other is for tests (only one as of now ;-;)
+After a successful build, two binaries should be generates as of now, one is the main application (formidb) and the other is for tests
 
 ---
 
@@ -58,9 +58,7 @@ gdb ./formidb
 ```
 ---
 
-### Memory checking with Valgrind
-
-Best tool in existence fr
+### Leak checking with Valgrind
 
 ```bash
 valgrind --leak-check=full --track-origins=yes ./formidb
