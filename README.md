@@ -44,9 +44,7 @@ cd build-debug
 cmake -DCMAKE_BUILD_TYPE=Debug ..
 cmake --build .
 ```
-
-This configuration enables symbols required for debugging and memory analysis tools.
-
+(With debug flags enabled)
 ---
 
 ### Debugging with gdb
